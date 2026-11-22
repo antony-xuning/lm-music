@@ -27,6 +27,22 @@
 
 ---
 
+## 📸 界面预览
+
+<div align="center">
+
+| 首页 · 在线与榜单 | 全屏播放器 · 超大封面 |
+| :---: | :---: |
+| <img src="docs/screenshots/01_home.png" width="260" /> | <img src="docs/screenshots/02_player.png" width="260" /> |
+| **资料库 · 云端与本地曲库** | **下载 · 任务管理** |
+| <img src="docs/screenshots/03_library.png" width="260" /> | <img src="docs/screenshots/04_download.png" width="260" /> |
+
+</div>
+
+> 以上为 HarmonyOS 真机竖屏实拍，展示了应用的主要界面。
+
+---
+
 ## ✨ 核心特性
 
 ### ☁️ 云端曲库与账号
@@ -85,29 +101,30 @@
 ## 📁 目录结构
 
 ```
-lm-music/
+lm-music/                           # HarmonyOS 工程根目录
 ├── README.md                       # 本说明文件
 ├── LICENSE                         # MIT 许可证
-└── harmony/                        # HarmonyOS 工程根目录
-    ├── AppScope/                   # 应用全局配置与资源（名称/图标）
-    ├── entry/                      # 唯一 entry 模块
-    │   └── src/main/
-    │       ├── module.json5        # 模块配置、权限、Ability
-    │       ├── resources/          # 图标、字符串、颜色等资源
-    │       └── ets/
-    │           ├── entryability/   # 应用入口 Ability
-    │           ├── pages/          # @Entry 页面与二级页面
-    │           ├── views/          # 页面视图（首页/资料库/下载/设置等）
-    │           ├── components/     # 通用 UI 组件（Dock/封面/歌单/弹层等）
-    │           ├── player/         # 全屏播放器、歌词、队列面板
-    │           ├── service/        # 网络 API、播放、扫描、标签、同步、播客服务
-    │           ├── viewmodel/      # 全局状态仓库（Store）
-    │           ├── model/          # 数据模型定义
-    │           ├── data/           # 本地持久化与缓存
-    │           └── common/         # 常量、调色板、工具、服务端接口定义
-    ├── hvigor/                     # hvigor 配置
-    ├── build-profile.json5         # 工程构建配置（含签名配置，见下文）
-    └── oh-package.json5            # 工程级依赖声明
+├── .gitignore                      # 忽略规则
+├── docs/screenshots/               # README 中展示的真机截图
+├── AppScope/                       # 应用全局配置与资源（名称/图标）
+├── entry/                          # 唯一 entry 模块
+│   └── src/main/
+│       ├── module.json5            # 模块配置、权限、Ability
+│       ├── resources/              # 图标、字符串、颜色等资源
+│       └── ets/
+│           ├── entryability/       # 应用入口 Ability
+│           ├── pages/              # @Entry 页面与二级页面
+│           ├── views/              # 页面视图（首页/资料库/下载/设置等）
+│           ├── components/         # 通用 UI 组件（Dock/封面/歌单/弹层等）
+│           ├── player/             # 全屏播放器、歌词、队列面板
+│           ├── service/            # 网络 API、播放、扫描、标签、同步、播客服务
+│           ├── viewmodel/          # 全局状态仓库（Store）
+│           ├── model/              # 数据模型定义
+│           ├── data/               # 本地持久化与缓存
+│           └── common/             # 常量、调色板、工具、服务端接口定义
+├── hvigor/                         # hvigor 配置
+├── build-profile.json5             # 工程构建配置（含签名配置，见下文）
+└── oh-package.json5                # 工程级依赖声明
 ```
 
 > 应用只有一个 `@Entry` 页面（`pages/Index.ets`），内部以 `Navigation + Tabs + 覆盖层` 组织全部界面。
@@ -125,7 +142,7 @@ lm-music/
 ### 获取代码
 ```bash
 git clone https://github.com/antony-xuning/lm-music.git
-cd lm-music/harmony
+cd lm-music
 ```
 
 ### 配置签名
@@ -137,7 +154,7 @@ cd lm-music/harmony
 4. DevEco Studio 会将本机签名信息写回 `build-profile.json5`（该文件已被 `.gitignore` 的本地规则排除提交，请勿将个人凭据提交到仓库）
 
 ### 构建与运行
-1. 用 DevEco Studio 打开 `harmony/` 目录
+1. 用 DevEco Studio 打开仓库根目录（`lm-music/`）
 2. 等待依赖同步（hvigor / oh_modules）完成
 3. 选择 `entry` 模块与 `default` 产物，连接真机或启动模拟器
 4. 点击运行（ ▶ ）安装应用

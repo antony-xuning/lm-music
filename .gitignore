@@ -10,12 +10,26 @@
 keystore.properties
 signing.properties
 
-# 通用构建产物
-**/build/
-**/.cxx/
-*.log
+# HarmonyOS / hvigor 构建产物
+/node_modules
+/oh_modules
+/local.properties
+/.idea
+**/build
+/.hvigor
+**/.hvigor/
+.cxx
+/.clangd
+/.clang-format
+/.clang-tidy
+**/.test
+/.appanalyzer
+/.cache
+
+# 迁移残留的旧 harmony/ 空壳目录（仅含构建缓存）
+/harmony/
 
 # 系统 / IDE
 .DS_Store
-.idea/
 *.iml
+*.log
