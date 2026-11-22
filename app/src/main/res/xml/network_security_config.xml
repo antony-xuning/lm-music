@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <!-- 允许局域网 HTTP 服务器；公网 HTTP 由 ServerUrlPolicy 在应用层拒绝。 -->
-    <base-config cleartextTrafficPermitted="true" />
-</network-security-config>
