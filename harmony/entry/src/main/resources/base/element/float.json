@@ -1,0 +1,44 @@
+{
+  "float": [
+    {
+      "name": "page_text_font_size",
+      "value": "50fp"
+    },
+    {
+      "name": "radius_sm",
+      "value": "12vp"
+    },
+    {
+      "name": "radius_md",
+      "value": "16vp"
+    },
+    {
+      "name": "radius_lg",
+      "value": "20vp"
+    },
+    {
+      "name": "radius_xl",
+      "value": "28vp"
+    },
+    {
+      "name": "font_display",
+      "value": "26fp"
+    },
+    {
+      "name": "font_title",
+      "value": "22fp"
+    },
+    {
+      "name": "font_headline",
+      "value": "18fp"
+    },
+    {
+      "name": "font_body",
+      "value": "15fp"
+    },
+    {
+      "name": "font_caption",
+      "value": "12fp"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/app/build
+**/build/
+captures
+.externalNativeBuild
+.cxx
+*.apk
+/LMPlayerTV/
+*github-token*.txt
+*.log
+app.tgz
+icon_downloaded.png
+keystore.jks
+keystore.properties
+
+# 调试截图（排查时临时产生，勿提交）
+/_dbg_*.png
+/screenshot_*.png
+
+/LM/
+/server/
+*audit*.md
+*审计*.md
+*tvcar*.md
+
+# 签名文件永不上传
+*.jks
+*.keystore
+*keystore.properties
+*signing.properties

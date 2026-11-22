@@ -1,0 +1,52 @@
+{
+  "routerMap": [
+    {
+      "name": "LibraryDetail",
+      "pageSourceFile": "src/main/ets/pages/LibraryDetailPage.ets",
+      "buildFunction": "LibraryDetailBuilder",
+      "data": {
+        "description": "资料库二级列表"
+      }
+    },
+    {
+      "name": "DiscoverCollection",
+      "pageSourceFile": "src/main/ets/pages/DiscoverCollectionPage.ets",
+      "buildFunction": "DiscoverCollectionBuilder",
+      "data": {
+        "description": "榜单 / 新碟 / 推荐歌单曲目"
+      }
+    },
+    {
+      "name": "PodcastShow",
+      "pageSourceFile": "src/main/ets/pages/PodcastShowPage.ets",
+      "buildFunction": "PodcastShowBuilder",
+      "data": {
+        "description": "播客节目详情"
+      }
+    },
+    {
+      "name": "PodcastManage",
+      "pageSourceFile": "src/main/ets/pages/PodcastManagePage.ets",
+      "buildFunction": "PodcastManageBuilder",
+      "data": {
+        "description": "播客订阅管理"
+      }
+    },
+    {
+      "name": "SourceManage",
+      "pageSourceFile": "src/main/ets/pages/SourceManagePage.ets",
+      "buildFunction": "SourceManageBuilder",
+      "data": {
+        "description": "音源脚本管理"
+      }
+    },
+    {
+      "name": "TagEditor",
+      "pageSourceFile": "src/main/ets/pages/TagEditorPage.ets",
+      "buildFunction": "TagEditorBuilder",
+      "data": {
+        "description": "服务器标签编辑"
+      }
+    }
+  ]
+}

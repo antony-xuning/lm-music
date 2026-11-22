@@ -1,0 +1,60 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#101014"
+    },
+    {
+      "name": "brand_red",
+      "value": "#FA2D48"
+    },
+    {
+      "name": "brand_red_soft",
+      "value": "#33FA2D48"
+    },
+    {
+      "name": "bg_dark",
+      "value": "#101014"
+    },
+    {
+      "name": "bg_light",
+      "value": "#F2F2F7"
+    },
+    {
+      "name": "card_dark",
+      "value": "#1C1C20"
+    },
+    {
+      "name": "card_light",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "text_primary_dark",
+      "value": "#F5F5F7"
+    },
+    {
+      "name": "text_primary_light",
+      "value": "#111113"
+    },
+    {
+      "name": "text_secondary_dark",
+      "value": "#A1A1A8"
+    },
+    {
+      "name": "text_secondary_light",
+      "value": "#636366"
+    },
+    {
+      "name": "divider_dark",
+      "value": "#2A2A30"
+    },
+    {
+      "name": "divider_light",
+      "value": "#E5E5EA"
+    },
+    {
+      "name": "scrim",
+      "value": "#000000"
+    }
+  ]
+}

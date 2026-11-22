@@ -1,0 +1,178 @@
+package com.lm.player
+
+import android.app.Activity
+import android.app.Application
+import android.content.Context
+import android.graphics.Bitmap
+import android.os.Build
+import android.os.Bundle
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import com.lm.player.core.crash.CrashLogManager
+import com.lm.player.core.database.ZdsDatabase
+import com.lm.player.core.security.ServerTokenCipher
+import com.lm.player.core.media.DynamicIslandManager
+import com.lm.player.core.network.NetworkClientFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+class LMApplication : Application(), ImageLoaderFactory {
+
+    private val activeStartedActivities = mutableSetOf<Int>()
+
+    override fun onCreate() {
+        super.onCreate()
+        ServerTokenCipher.init(this)
+        CrashLogManager.install(this)
+        // 柠檬服务端会话过期（401）时用本地保存的密码自动重登，避免只能删掉服务器重新添加
+        com.lm.player.core.network.LemonMusicProtocol.installSessionReauth(this)
+        // 播客收听进度记录（后台服务单独拉起进程时也要能记录 / 续播）
+        com.lm.player.core.podcast.PodcastController.init(this)
+
+        // 1. 监听应用前后台切换，实现“应用内隐藏灵动岛，挂后台时手机顶部即时呈现概念版灵动岛”
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+
+            override fun onActivityStarted(activity: Activity) {
+                activeStartedActivities.add(System.identityHashCode(activity))
+                DynamicIslandManager.onAppBackgroundStateChanged(this@LMApplication, inBackground = false)
+            }
+
+            override fun onActivityResumed(activity: Activity) {
+                activeStartedActivities.add(System.identityHashCode(activity))
+                DynamicIslandManager.onAppBackgroundStateChanged(this@LMApplication, inBackground = false)
+            }
+
+            override fun onActivityPaused(activity: Activity) {}
+
+            override fun onActivityStopped(activity: Activity) {
+                activeStartedActivities.remove(System.identityHashCode(activity))
+                if (activeStartedActivities.isEmpty() && !activity.isChangingConfigurations) {
+                    DynamicIslandManager.onAppBackgroundStateChanged(this@LMApplication, inBackground = true)
+                }
+            }
+
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+
+            override fun onActivityDestroyed(activity: Activity) {
+                activeStartedActivities.remove(System.identityHashCode(activity))
+            }
+        })
+
+        // 2. 异步在后台线程加载 Conscrypt 安全提供商、Media3 缓存与 Room 数据库，0ms 阻塞冷启动主线程
+        CoroutineScope(Dispatchers.IO).launch {
+            NetworkClientFactory.installSecurityProvider()
+
+            // 键名统一为 stream_cache_enabled_v2：此前 Application 读 stream_cache_enabled
+            // 而 Media3Factory 读 stream_cache_enabled_v2，两个键互不同步，
+            // 该布尔值会被两处竞争改写（P3-4）。
+            val prefs = getSharedPreferences("lemon_settings_prefs", Context.MODE_PRIVATE)
+            val streamCacheEnabled = prefs.getBoolean("stream_cache_enabled_v2", false)
+            com.lm.player.core.media.Media3Factory.setCacheEnabled(streamCacheEnabled)
+            com.lm.player.core.media.Media3Factory.prewarm(this@LMApplication)
+
+            // Room 首次 open 要建库/校验 schema，是在磁盘上做实事的操作。
+            // 放在主线程会直接拖慢冷启动首帧（与上面的注释目标相矛盾），此处挪进 IO 协程。
+            // 单例本身是 @Volatile + synchronized 的，主线程后续取用拿到的是同一实例。
+            val db = ZdsDatabase.getInstance(this@LMApplication)
+            // 旧库明文 Token 一次性迁移为 Keystore 加密值。
+            runCatching {
+                db.serverDao().getAllServers().forEach { server ->
+                    if (!ServerTokenCipher.isEncrypted(server.tokenOrApiKeyEncrypted)) {
+                        val encrypted = ServerTokenCipher.encrypt(server.tokenOrApiKey)
+                        // 加密失败会回退明文；不要用空值覆盖旧 Token。
+                        if (encrypted.isNotBlank()) {
+                            db.serverDao().updateServerToken(server.id, encrypted)
+                        }
+                    }
+                }
+            }
+            migrateServerUrlCase(db)
+            com.lm.player.core.source.ServerSourceRepository.init(this@LMApplication)
+            com.lm.player.core.source.SourceAccelerationSession.init(this@LMApplication)
+            com.lm.player.core.source.SourceAccelerationController.init(this@LMApplication)
+            // 冷启动：上次下载好的待用版音源转正、记保留期；引擎按需加载（第一次要取链 / 打开音源页 / 服务器断线时才装载，与 TV 一致）
+            com.lm.player.core.source.SourceAccelerationController.recordProcessStart(this@LMApplication)
+            com.lm.player.core.source.SourceAccelerationController.restoreFromCache(this@LMApplication)
+            // 服务器歌曲加速表：旧匹配文件并入（只做一次），再启动后台预匹配（登录、曲库同步后也会再触发）
+            com.lm.player.core.source.ServerTrackAccelStore.ensureLegacyImported()
+            com.lm.player.core.source.ServerTrackPrematcher.init(this@LMApplication)
+
+        }
+
+        // 3. 后台灵动岛引擎初始化（纯内存状态读取，无磁盘 IO）
+        DynamicIslandManager.ensureInitialized(this)
+
+        // 4. 歌单小部件：本地歌单 / 收藏变化时刷新「我的歌单」（没放歌单小部件时只是空转监听）
+        com.lm.player.core.widget.PlaylistWidgetController.startObserving(this)
+    }
+
+    /**
+     * 一次性修正：旧版本允许保存 `HTTP://NAS.Local` 这类大写协议/主机名的地址，后续多处按小写前缀判断导致无法登录。
+     * 启动时把已保存的地址统一规范为小写协议和主机名（路径保持原样），用户无需删掉服务器重新添加。
+     */
+    private suspend fun migrateServerUrlCase(db: ZdsDatabase) {
+        runCatching {
+            db.serverDao().getAllServers().forEach { server ->
+                val canonical = com.lm.player.core.network.ServerUrlPolicy.canonicalize(server.serverUrl)
+                if (canonical.isNotBlank() && canonical != server.serverUrl) {
+                    db.serverDao().updateServerUrl(server.id, canonical)
+                }
+            }
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level == TRIM_MEMORY_UI_HIDDEN) {
+            activeStartedActivities.clear()
+            DynamicIslandManager.onAppBackgroundStateChanged(this, inBackground = true)
+        }
+    }
+
+    private var lastWidgetOrientation = android.content.res.Configuration.ORIENTATION_UNDEFINED
+
+    /** 横竖屏切换（平板 / 车机常见）后桌面格子尺寸改变：桌面小部件按新尺寸重绘 */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (newConfig.orientation != lastWidgetOrientation) {
+            lastWidgetOrientation = newConfig.orientation
+            com.lm.player.core.widget.WidgetDataRepository.refreshAllForNewSize(this)
+        }
+    }
+
+
+    /**
+     * 针对车机与移动平台调优的高性能全局 Coil 图像加载器
+     */
+    override fun newImageLoader(): ImageLoader {
+        val okHttpClient = NetworkClientFactory.createImageOkHttpClient(this)
+        return ImageLoader.Builder(this)
+            .okHttpClient(okHttpClient)
+            .crossfade(false) // 关闭多余淡入淡出动画，换取极致流畅与零掉帧
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.20)
+                    .strongReferencesEnabled(true)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    // 图片磁盘缓存 96MB（原 256MB）：与流媒体缓存、OkHttp 缓存合计
+                    // 不应把 cacheDir 撑到 GB 级；Coil 内存缓存已能覆盖绝大多数滚动场景
+                    .maxSizeBytes(96L * 1024 * 1024)
+                    .build()
+            }
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .allowHardware(Build.VERSION.SDK_INT >= 29)
+            .allowRgb565(true)
+            // 服务器歌曲封面：加速表里有平台封面时与服务器竞速，弱网直接先用平台封面（与 TV 一致）
+            .components { add(com.lm.player.core.media.ServerCoverRaceInterceptor) }
+            .respectCacheHeaders(false)
+            .build()
+    }
+}
