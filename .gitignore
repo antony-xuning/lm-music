@@ -33,3 +33,6 @@ keystore.properties
 *.keystore
 *keystore.properties
 *signing.properties
+
+# WorkBuddy 项目数据（无需提交）
+/.workbuddy/
