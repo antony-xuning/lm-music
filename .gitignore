@@ -1,0 +1,21 @@
+# WorkBuddy 项目数据（本地私有，无需提交）
+/.workbuddy/
+
+# 本地签名凭据（切勿提交到公开仓库）
+*.cer
+*.p7b
+*.p12
+*.keystore
+*.jks
+keystore.properties
+signing.properties
+
+# 通用构建产物
+**/build/
+**/.cxx/
+*.log
+
+# 系统 / IDE
+.DS_Store
+.idea/
+*.iml
