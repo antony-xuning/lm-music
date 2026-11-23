@@ -15,7 +15,7 @@ import { overlayStore } from '../viewmodel/OverlayStore';
 import { serverStore } from '../viewmodel/ServerStore';
 import { settingsStore } from '../viewmodel/SettingsStore';
 import { scrollChrome } from '../viewmodel/ScrollChromeStore';
-import { DiscoverView } from './DiscoverView';
+import { DiscoverGridHome } from './DiscoverGridHome';
 import { LocalHomeView } from './LocalHomeView';
 
 /** 服务端音源代码 → 偏好设置中的在线音源枚举。 */
@@ -96,7 +96,7 @@ export struct HomeView {
       .padding({ left: layoutStore.gutter, right: layoutStore.gutter, top: 6, bottom: 6 })
 
       if (this.effectiveMode() === HomeMode.SERVER) {
-        DiscoverView({
+        DiscoverGridHome({
           onOpenCollection: (param: DiscoverCollectionParam) => {
             this.onOpenCollection(param);
           }

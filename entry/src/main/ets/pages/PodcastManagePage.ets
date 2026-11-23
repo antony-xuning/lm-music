@@ -11,6 +11,7 @@ import { AppConstants } from '../common/Constants';
 import { layoutStore } from '../viewmodel/LayoutStore';
 import { podcastStore } from '../viewmodel/PodcastStore';
 import { themeStore } from '../viewmodel/ThemeStore';
+import { ImmersiveGlass } from '../common/ImmersiveGlass';
 
 @ComponentV2
 export struct PodcastManagePage {
@@ -122,10 +123,12 @@ export struct PodcastManagePage {
       .width('100%')
       .height('100%')
       .padding({ left: layoutStore.gutter, right: layoutStore.gutter, top: 8 })
+      .linearGradient({ angle: ImmersiveGlass.ANGLE, colors: ImmersiveGlass.backdrop() })
     }
     .title('订阅管理')
     .mode(NavDestinationMode.STANDARD)
     .backgroundColor(themeStore.palette.bg)
+    .systemMaterial(ImmersiveGlass.title())
     .onReady((ctx: NavDestinationContext) => {
       this.navStack = ctx.pathStack;
     })

@@ -17,6 +17,7 @@ import { overlayStore } from '../viewmodel/OverlayStore';
 import { searchStore } from '../viewmodel/SearchStore';
 import { serverStore } from '../viewmodel/ServerStore';
 import { themeStore } from '../viewmodel/ThemeStore';
+import { ImmersiveGlass } from '../common/ImmersiveGlass';
 
 @ComponentV2
 export struct SearchView {
@@ -424,5 +425,6 @@ export struct SearchView {
       bottom: 10
     })
     .backgroundColor(themeStore.palette.bg)
+    .linearGradient({ angle: ImmersiveGlass.ANGLE, colors: ImmersiveGlass.backdrop() })
   }
 }

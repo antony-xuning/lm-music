@@ -11,6 +11,7 @@ import { PodcastShowParam } from '../model/UiModels';
 import { layoutStore } from '../viewmodel/LayoutStore';
 import { podcastStore } from '../viewmodel/PodcastStore';
 import { themeStore } from '../viewmodel/ThemeStore';
+import { ImmersiveGlass } from '../common/ImmersiveGlass';
 
 @ComponentV2
 export struct PodcastShowPage {
@@ -223,10 +224,12 @@ export struct PodcastShowPage {
       .width('100%')
       .height('100%')
       .padding({ left: layoutStore.gutter, right: layoutStore.gutter, top: 8 })
+      .linearGradient({ angle: ImmersiveGlass.ANGLE, colors: ImmersiveGlass.backdrop() })
     }
     .title(this.feed().title.length > 0 ? this.feed().title : '播客节目')
     .mode(NavDestinationMode.STANDARD)
     .backgroundColor(themeStore.palette.bg)
+    .systemMaterial(ImmersiveGlass.title())
     .onReady((ctx: NavDestinationContext) => {
       this.navStack = ctx.pathStack;
       if (ctx.pathInfo.param !== undefined) {

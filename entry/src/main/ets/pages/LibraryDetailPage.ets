@@ -21,6 +21,7 @@ import { overlayStore } from '../viewmodel/OverlayStore';
 import { playerStore } from '../viewmodel/PlayerStore';
 import { routeBridge } from '../viewmodel/RouteBridge';
 import { themeStore } from '../viewmodel/ThemeStore';
+import { ImmersiveGlass } from '../common/ImmersiveGlass';
 
 @ComponentV2
 export struct LibraryDetailPage {
@@ -689,10 +690,12 @@ export struct LibraryDetailPage {
       }
       .width('100%')
       .height('100%')
+      .linearGradient({ angle: ImmersiveGlass.ANGLE, colors: ImmersiveGlass.backdrop() })
     }
     .title(this.param.title)
     .mode(NavDestinationMode.STANDARD)
     .backgroundColor(themeStore.palette.bg)
+    .systemMaterial(ImmersiveGlass.title())
     .onReady((ctx: NavDestinationContext) => {
       this.navStack = ctx.pathStack;
       if (ctx.pathInfo.param !== undefined) {

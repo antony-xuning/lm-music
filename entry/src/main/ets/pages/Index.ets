@@ -24,6 +24,7 @@ import { QueueSheet } from '../player/QueueSheet';
 import { PlayerMoreSheet } from '../player/PlayerMoreSheet';
 import { SheetKind } from '../viewmodel/OverlayStore';
 import { AppConstants, DockMetrics } from '../common/Constants';
+import { ImmersiveGlass } from '../common/ImmersiveGlass';
 import { themeStore } from '../viewmodel/ThemeStore';
 import { layoutStore } from '../viewmodel/LayoutStore';
 import { overlayStore } from '../viewmodel/OverlayStore';
@@ -311,6 +312,7 @@ struct Index {
           .width('100%')
           .height('100%')
           .backgroundColor(themeStore.palette.bg)
+          .linearGradient({ angle: ImmersiveGlass.ANGLE, colors: ImmersiveGlass.backdrop() })
           .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
 
         Tabs({ index: overlayStore.tabIndex, barPosition: BarPosition.End }) {
@@ -359,10 +361,7 @@ struct Index {
           },
           barSideMargin: 8,
           barBottomMargin: DockMetrics.BOTTOM_MARGIN,
-          systemMaterial: new uiMaterial.ImmersiveMaterial({
-            style: uiMaterial.ImmersiveStyle.THIN,
-            interactive: true
-          })
+          systemMaterial: ImmersiveGlass.dock()
         })
         .scrollable(true)
         .animationDuration(220)

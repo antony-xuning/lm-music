@@ -107,6 +107,18 @@ export class LocalScanStore {
     return this.folders.length;
   }
 
+  /** 去重专辑数（非平凡 getter，供首页副标题展示收录统计）。 */
+  get albumCount(): number {
+    const albums: Set<string> = new Set<string>();
+    for (let i = 0; i < this.tracks.length; i++) {
+      const name: string = this.tracks[i].album.trim();
+      if (name.length > 0) {
+        albums.add(name);
+      }
+    }
+    return albums.size;
+  }
+
   get totalBytes(): number {
     let sum: number = 0;
     for (let i = 0; i < this.tracks.length; i++) {

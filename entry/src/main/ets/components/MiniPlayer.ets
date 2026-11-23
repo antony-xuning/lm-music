@@ -1,8 +1,9 @@
 /**
  * 独立迷你播放器胶囊（华为音乐风双层底栏的上层）。
  *
- * 完全通透玻璃：不绘制任何底色/封面色遮罩、不画描边，只有 BlurStyle.Thin
- * 背景模糊 + 柔和投影 + 文字轻阴影保证可读；底层内容直接透出（FR-148）。
+ * 背景与底部 Dock 同色系（headerGlass 色值，alpha 略低更通透）+ 背景模糊，
+ * 压住底层花哨光斑、呈现与 Dock 一致的玻璃观感；因 systemMaterial 通用属性在普通容器上
+ * 真机可能渲染为全透明，故改用确定性的实色 + 模糊，保证可见。文字轻阴影保证可读。
  * 展示封面 / 标题 / 歌手 / 播放暂停 / 下一首 / 队列入口；有进度时显示顶部进度段。
  * 点击非按钮区域打开全屏播放器（走收缩/展开过渡）。
  */
@@ -50,6 +51,16 @@ export struct MiniPlayer {
 
   private controlBg(): string {
     return themeStore.isDark ? '#1FFFFFFF' : '#14000000';
+  }
+
+  /** 播放条玻璃底色：与 Dock 的 headerGlass 同色系，低 alpha 只作轻色调，通透靠 backgroundEffect。 */
+  private glassBg(): string {
+    return themeStore.isDark ? '#1A1A1F73' : '#F7F7FA73';
+  }
+
+  /** 玻璃边缘高光：模拟折射的 1px 亮边，深浅主题各取合适对比度。 */
+  private glassEdge(): string {
+    return themeStore.isDark ? '#2EFFFFFF' : '#4DFFFFFF';
   }
 
   @Builder
@@ -168,7 +179,9 @@ export struct MiniPlayer {
         .width('100%')
         .height(DockMetrics.PLAYER_HEIGHT)
         .borderRadius(DockMetrics.PLAYER_HEIGHT / 2)
-        .backgroundBlurStyle(BlurStyle.Thin)
+        .backgroundColor(this.glassBg())
+        .backgroundEffect({ radius: 24, saturation: 1.8, brightness: 1.1 })
+        .border({ width: 0.8, color: this.glassEdge() })
         .shadow({ radius: 16, color: themeStore.isDark ? '#33000000' : '#1A000000', offsetX: 0, offsetY: 6 })
         .clip(true)
         .onClick(() => {

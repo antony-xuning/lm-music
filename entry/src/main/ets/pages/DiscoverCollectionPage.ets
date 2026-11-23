@@ -12,6 +12,7 @@ import { playSongsShuffled, playVisualSong, queueSong } from '../service/Playbac
 import { layoutStore } from '../viewmodel/LayoutStore';
 import { libraryStore } from '../viewmodel/LibraryStore';
 import { themeStore } from '../viewmodel/ThemeStore';
+import { ImmersiveGlass } from '../common/ImmersiveGlass';
 
 @ComponentV2
 export struct DiscoverCollectionPage {
@@ -204,10 +205,12 @@ export struct DiscoverCollectionPage {
       .width('100%')
       .height('100%')
       .padding({ left: layoutStore.gutter, right: layoutStore.gutter, top: 8 })
+      .linearGradient({ angle: ImmersiveGlass.ANGLE, colors: ImmersiveGlass.backdrop() })
     }
     .title(this.param.title)
     .mode(NavDestinationMode.STANDARD)
     .backgroundColor(themeStore.palette.bg)
+    .systemMaterial(ImmersiveGlass.title())
     .onReady((ctx: NavDestinationContext) => {
       if (ctx.pathInfo.param !== undefined) {
         const param = ctx.pathInfo.param as DiscoverCollectionParam;
