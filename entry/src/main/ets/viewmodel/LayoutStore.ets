@@ -14,6 +14,7 @@ export class LayoutStore {
   @Trace attached: boolean = false;
 
   private listeners: mediaquery.MediaQueryListener[] = [];
+  private listenerCallbacks: ((result: mediaquery.MediaQueryResult) => void)[] = [];
   private smMatches: boolean = true;
   private mdMatches: boolean = false;
   private lgMatches: boolean = false;
@@ -39,10 +40,13 @@ export class LayoutStore {
       const landscapeListener: mediaquery.MediaQueryListener =
         context.getMediaQuery().matchMediaSync('(orientation: landscape)');
       this.landscape = landscapeListener.matches;
-      landscapeListener.on('change', (result: mediaquery.MediaQueryResult) => {
-        this.landscape = result.matches;
-      });
+      const landscapeCallback: (result: mediaquery.MediaQueryResult) => void =
+        (result: mediaquery.MediaQueryResult): void => {
+          this.landscape = result.matches;
+        };
+      landscapeListener.on('change', landscapeCallback);
       this.listeners.push(landscapeListener);
+      this.listenerCallbacks.push(landscapeCallback);
       this.refresh();
     } catch (error) {
       Logger.warn(SCOPE, 'media query unavailable, fallback to phone layout');
@@ -52,10 +56,30 @@ export class LayoutStore {
   private register(context: UIContext, condition: string, apply: (matches: boolean) => void): void {
     const listener: mediaquery.MediaQueryListener = context.getMediaQuery().matchMediaSync(condition);
     apply(listener.matches);
-    listener.on('change', (result: mediaquery.MediaQueryResult) => {
-      apply(result.matches);
-    });
+    const callback: (result: mediaquery.MediaQueryResult) => void =
+      (result: mediaquery.MediaQueryResult): void => {
+        apply(result.matches);
+      };
+    listener.on('change', callback);
     this.listeners.push(listener);
+    this.listenerCallbacks.push(callback);
+  }
+
+  /** 页面卸载时解绑所有媒体查询，避免 Ability 重建后重复监听。 */
+  detach(): void {
+    if (!this.attached) {
+      return;
+    }
+    for (let i = 0; i < this.listeners.length; i++) {
+      try {
+        this.listeners[i].off('change', this.listenerCallbacks[i]);
+      } catch (error) {
+        Logger.warn(SCOPE, 'media query off failed');
+      }
+    }
+    this.listeners = [];
+    this.listenerCallbacks = [];
+    this.attached = false;
   }
 
   private refresh(): void {

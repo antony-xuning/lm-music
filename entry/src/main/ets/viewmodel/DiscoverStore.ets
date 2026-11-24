@@ -48,6 +48,8 @@ export class DiscoverStore {
 
   private started: boolean = false;
   private caches: Map<string, DiscoverCache> = new Map<string, DiscoverCache>();
+  /** 每次加载分配序号，切音源/重复刷新时丢弃旧请求的回包。 */
+  private loadSeq: number = 0;
 
   init(): void {
     if (this.started) {
@@ -67,6 +69,8 @@ export class DiscoverStore {
       return;
     }
     this.source = source;
+    // 切源即让在途请求失效，避免旧音源数据写进新音源缓存。
+    this.loadSeq++;
     const cached: DiscoverCache | undefined = this.caches.get(source);
     if (cached !== undefined) {
       this.applyCache(cached);
@@ -103,28 +107,41 @@ export class DiscoverStore {
       this.recommendError = this.topError;
       return;
     }
-    const cached: DiscoverCache | undefined = this.caches.get(this.source);
+    const source: string = this.source;
+    const seq: number = ++this.loadSeq;
+    const cached: DiscoverCache | undefined = this.caches.get(source);
     if (!force && cached !== undefined && Date.now() - cached.loadedAt < AppConstants.DISCOVER_CACHE_TTL_MS) {
       this.applyCache(cached);
       return;
     }
     this.refreshing = true;
     const cache: DiscoverCache = new DiscoverCache();
-    await Promise.all([
-      this.loadToplists(cache),
-      this.loadNewSongs(cache),
-      this.loadNewAlbums(cache),
-      this.loadRecommend(cache)
-    ]);
-    cache.loadedAt = Date.now();
-    this.caches.set(this.source, cache);
-    this.lastLoadedAt = cache.loadedAt;
-    this.refreshing = false;
+    try {
+      await Promise.all([
+        this.loadToplists(cache, source, seq),
+        this.loadNewSongs(cache, source, seq),
+        this.loadNewAlbums(cache, source, seq),
+        this.loadRecommend(cache, source, seq)
+      ]);
+      if (seq !== this.loadSeq || source !== this.source) {
+        return;
+      }
+      cache.loadedAt = Date.now();
+      this.caches.set(source, cache);
+      this.lastLoadedAt = cache.loadedAt;
+    } finally {
+      if (seq === this.loadSeq) {
+        this.refreshing = false;
+      }
+    }
   }
 
-  private async loadToplists(cache: DiscoverCache): Promise<void> {
+  private async loadToplists(cache: DiscoverCache, source: string, seq: number): Promise<void> {
     this.topState = BLOCK_LOADING;
-    const payload: ToplistPayload = await DiscoverService.toplists(this.source);
+    const payload: ToplistPayload = await DiscoverService.toplists(source);
+    if (seq !== this.loadSeq || source !== this.source) {
+      return;
+    }
     if (payload.ok) {
       cache.toplists = payload.items;
       this.toplists = payload.items;
@@ -136,9 +153,12 @@ export class DiscoverStore {
     }
   }
 
-  private async loadNewSongs(cache: DiscoverCache): Promise<void> {
+  private async loadNewSongs(cache: DiscoverCache, source: string, seq: number): Promise<void> {
     this.newSongsState = BLOCK_LOADING;
-    const payload: SongPayload = await DiscoverService.newSongs(this.source, 20);
+    const payload: SongPayload = await DiscoverService.newSongs(source, 20);
+    if (seq !== this.loadSeq || source !== this.source) {
+      return;
+    }
     if (payload.ok) {
       cache.newSongs = payload.items;
       this.newSongs = payload.items;
@@ -150,9 +170,12 @@ export class DiscoverStore {
     }
   }
 
-  private async loadNewAlbums(cache: DiscoverCache): Promise<void> {
+  private async loadNewAlbums(cache: DiscoverCache, source: string, seq: number): Promise<void> {
     this.newAlbumsState = BLOCK_LOADING;
-    const payload: AlbumPayload = await DiscoverService.newAlbums(this.source, 12);
+    const payload: AlbumPayload = await DiscoverService.newAlbums(source, 12);
+    if (seq !== this.loadSeq || source !== this.source) {
+      return;
+    }
     if (payload.ok) {
       cache.newAlbums = payload.items;
       this.newAlbums = payload.items;
@@ -164,9 +187,12 @@ export class DiscoverStore {
     }
   }
 
-  private async loadRecommend(cache: DiscoverCache): Promise<void> {
+  private async loadRecommend(cache: DiscoverCache, source: string, seq: number): Promise<void> {
     this.recommendState = BLOCK_LOADING;
-    const payload: PlaylistPayload = await DiscoverService.recommendPlaylists(this.source, 1, 10);
+    const payload: PlaylistPayload = await DiscoverService.recommendPlaylists(source, 1, 10);
+    if (seq !== this.loadSeq || source !== this.source) {
+      return;
+    }
     if (payload.ok) {
       cache.recommend = payload.items;
       this.recommend = payload.items;
@@ -194,19 +220,24 @@ export class DiscoverStore {
   }
 
   async retryBlock(block: string): Promise<void> {
-    const cache: DiscoverCache | undefined = this.caches.get(this.source);
+    const source: string = this.source;
+    const seq: number = ++this.loadSeq;
+    const cache: DiscoverCache | undefined = this.caches.get(source);
     const target: DiscoverCache = cache !== undefined ? cache : new DiscoverCache();
     if (block === 'toplists') {
-      await this.loadToplists(target);
+      await this.loadToplists(target, source, seq);
     } else if (block === 'newSongs') {
-      await this.loadNewSongs(target);
+      await this.loadNewSongs(target, source, seq);
     } else if (block === 'newAlbums') {
-      await this.loadNewAlbums(target);
+      await this.loadNewAlbums(target, source, seq);
     } else {
-      await this.loadRecommend(target);
+      await this.loadRecommend(target, source, seq);
+    }
+    if (seq !== this.loadSeq || source !== this.source) {
+      return;
     }
     target.loadedAt = Date.now();
-    this.caches.set(this.source, target);
+    this.caches.set(source, target);
   }
 
   static get IDLE(): string {

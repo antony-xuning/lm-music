@@ -117,7 +117,7 @@ export struct DownloadView {
         .fontColor(themeStore.palette.text)
         .padding({ left: 12, right: 12, top: 7, bottom: 7 })
         .borderRadius(14)
-        .backgroundColor('#22FFFFFF')
+        .backgroundColor(themeStore.palette.controlBg)
         .onClick(() => {
           downloadStore.refresh();
         })
@@ -127,7 +127,7 @@ export struct DownloadView {
         .fontColor(themeStore.palette.text)
         .padding({ left: 12, right: 12, top: 7, bottom: 7 })
         .borderRadius(14)
-        .backgroundColor('#22FFFFFF')
+        .backgroundColor(themeStore.palette.controlBg)
         .onClick(() => {
           this.confirmClearCompleted();
         })
@@ -206,7 +206,7 @@ export struct DownloadView {
       .width('100%')
       .padding(12)
       .borderRadius(14)
-      .backgroundColor('#14FFFFFF')
+      .backgroundColor(themeStore.palette.softFill)
 
       Text('下载目标为服务器曲库，不占用本机存储。')
         .fontSize(9.5)
@@ -267,7 +267,7 @@ export struct DownloadView {
           if (downloadStore.tasks.length === 0) {
             EmptyState({
               title: downloadStore.loading ? '正在读取任务' : '还没有下载任务',
-              description: '在歌曲更多菜单里选择「下载到服务器」即可提交任务',
+              description: '在歌曲更多菜单里选择「下载」即可提交任务',
               textColor: themeStore.palette.text,
               subColor: themeStore.palette.sub,
               accent: themeStore.palette.brand
@@ -338,7 +338,7 @@ export struct DownloadView {
     .width('100%')
     .height('100%')
     .onDidScroll((delta: number, state: ScrollState) => {
-      scrollChrome.report(this.scroller.currentOffset().yOffset, delta);
+      scrollChrome.reportFromScroller(this.scroller, delta);
     })
     .bindSheet(this.showDetail, this.detailSheet(), {
       dragBar: false,

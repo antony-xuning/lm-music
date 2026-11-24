@@ -223,6 +223,11 @@ export struct LocalHomeView {
         .padding({ left: 14, right: 14, top: 8, bottom: 8 })
         .borderRadius(17)
         .backgroundColor(themeStore.palette.brand)
+        .stateStyles({
+          pressed: { .scale({ x: 0.92, y: 0.92 }) },
+          normal: { .scale({ x: 1, y: 1 }) }
+        })
+        .animation({ duration: 120, curve: Curve.EaseOut })
         .onClick(() => {
           this.addFolder();
         })
@@ -234,6 +239,11 @@ export struct LocalHomeView {
           .padding({ left: 13, right: 13, top: 8, bottom: 8 })
           .borderRadius(17)
           .backgroundColor(themeStore.palette.cardSoft)
+          .stateStyles({
+            pressed: { .scale({ x: 0.92, y: 0.92 }) },
+            normal: { .scale({ x: 1, y: 1 }) }
+          })
+          .animation({ duration: 120, curve: Curve.EaseOut })
           .onClick(() => {
             localScanStore.cancel();
           })
@@ -338,12 +348,12 @@ export struct LocalHomeView {
 
       Column({ space: 2 }) {
         Text(track.title)
-          .fontSize(13)
+          .fontSize(themeStore.font(13))
           .fontColor(themeStore.palette.text)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(`${track.artist} · ${track.album}`)
-          .fontSize(10)
+          .fontSize(themeStore.font(10))
           .fontColor(themeStore.palette.sub)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -353,11 +363,16 @@ export struct LocalHomeView {
 
       BadgeView({ text: '本地', tone: 'success' })
       Text(Formatters.duration(track.durationMs))
-        .fontSize(10)
+        .fontSize(themeStore.font(10))
         .fontColor(themeStore.palette.sub)
     }
     .width('100%')
     .padding({ top: 7, bottom: 7 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       if (fromRecent) {
         this.playRecent(index);
@@ -462,7 +477,7 @@ export struct LocalHomeView {
     .edgeEffect(EdgeEffect.Spring)
     .cachedCount(8)
     .onDidScroll((delta: number, state: ScrollState) => {
-      scrollChrome.report(this.scroller.currentOffset().yOffset, delta);
+      scrollChrome.reportFromScroller(this.scroller, delta);
     })
     .padding({ left: layoutStore.gutter, right: layoutStore.gutter, top: 0,
       bottom: DockMetrics.contentBottomInset(playerStore.current !== null, scrollChrome.collapsed) })

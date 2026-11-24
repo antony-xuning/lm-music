@@ -9,8 +9,11 @@ import { DiscoverCollectionKind, DiscoverCollectionParam } from '../model/UiMode
 import { ServerEndpoints } from '../common/ServerEndpoints';
 import { DiscoverService, SongPayload } from '../service/DiscoverService';
 import { playSongsShuffled, playVisualSong, queueSong } from '../service/PlaybackLauncher';
+import { DownloadOpResult } from '../service/ServerDownloadService';
 import { layoutStore } from '../viewmodel/LayoutStore';
 import { libraryStore } from '../viewmodel/LibraryStore';
+import { downloadStore } from '../viewmodel/DownloadStore';
+import { settingsStore } from '../viewmodel/SettingsStore';
 import { themeStore } from '../viewmodel/ThemeStore';
 import { ImmersiveGlass } from '../common/ImmersiveGlass';
 
@@ -56,17 +59,22 @@ export struct DiscoverCollectionPage {
   }
 
   private showActions(song: Song): void {
-    const actions: string[] = ['立即播放', '加入队列', '收藏', '加入歌单'];
+    const actions: string[] = ['立即播放', '加入试听列表', '收藏', '加入歌单', '下载'];
     ConfirmDialog.actionSheet(this.getUIContext(), song.title, actions).then((index: number) => {
       if (index === 0) {
         playVisualSong([song], 0);
       } else if (index === 1) {
         queueSong(song);
-        ConfirmDialog.toast(this.getUIContext(), '已加入播放队列');
+        ConfirmDialog.toast(this.getUIContext(), '已加入试听列表');
       } else if (index === 2) {
         this.toggleFavorite(song);
       } else if (index === 3) {
         this.addToPlaylist(song);
+      } else if (index === 4) {
+        downloadStore.addFromSong(song, settingsStore.prefs.defaultQuality)
+          .then((result: DownloadOpResult) => {
+            ConfirmDialog.toast(this.getUIContext(), result.message);
+          });
       }
     });
   }
@@ -130,7 +138,7 @@ export struct DiscoverCollectionPage {
       }
       .padding({ left: 12, right: 12, top: 7, bottom: 7 })
       .borderRadius(14)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .onClick(() => {
         playSongsShuffled(this.songs);
       })
@@ -177,27 +185,30 @@ export struct DiscoverCollectionPage {
         } else {
           this.actions()
           List() {
-            ForEach(this.songs, (song: Song, index: number) => {
-              ListItem() {
-                SongRow({
-                  song: song,
-                  index: index,
-                  textColor: themeStore.palette.text,
-                  subColor: themeStore.palette.sub,
-                  accent: themeStore.palette.brand,
-                  onTap: (item: Song) => {
-                    playVisualSong(this.songs, index);
-                  },
-                  onMore: (item: Song) => {
-                    this.showActions(item);
-                  }
-                })
-              }
-            }, (song: Song) => song.id)
+            // Repeat 虚拟滚动：合集曲目可能上千首，仅渲染可视区+预加载区。
+            Repeat<Song>(this.songs)
+              .key((song: Song) => song.id)
+              .each((ri: RepeatItem<Song>) => {
+                ListItem() {
+                  SongRow({
+                    ri: ri,
+                    textColor: themeStore.palette.text,
+                    subColor: themeStore.palette.sub,
+                    accent: themeStore.palette.brand,
+                    onTap: (item: Song) => {
+                      playVisualSong(this.songs, ri.index);
+                    },
+                    onMore: (item: Song) => {
+                      this.showActions(item);
+                    }
+                  })
+                }
+              })
+              .virtualScroll()
           }
           .width('100%')
           .layoutWeight(1)
-          .divider({ strokeWidth: 0.5, color: '#14FFFFFF' })
+          .divider({ strokeWidth: 0.5, color: themeStore.palette.softDivider })
           .scrollBar(BarState.Off)
           .cachedCount(8)
         }

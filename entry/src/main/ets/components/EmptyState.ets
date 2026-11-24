@@ -1,6 +1,8 @@
 /**
  * 空态 / 错误态 / 加载态统一展示。
  */
+import { themeStore } from '../viewmodel/ThemeStore';
+
 @ComponentV2
 export struct EmptyState {
   @Param title: string = '暂无内容';
@@ -27,8 +29,8 @@ export struct EmptyState {
             .width(64)
             .height(64)
             .borderRadius(24)
-            .backgroundColor('#1F2A2A30')
-            .border({ width: 1, color: '#22FFFFFF' })
+            .backgroundColor(themeStore.isDark ? '#1F2A2A30' : '#0F000000')
+            .border({ width: 1, color: themeStore.isDark ? '#22FFFFFF' : '#14000000' })
           Image($r('app.media.ic_playlist_add'))
             .width(26)
             .height(26)

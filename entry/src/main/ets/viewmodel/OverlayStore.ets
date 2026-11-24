@@ -9,7 +9,8 @@ export enum SheetKind {
   LYRIC_ADJUST = 'lyricAdjust',
   QUEUE = 'queue',
   MORE = 'more',
-  ADD_PLAYLIST = 'addPlaylist'
+  ADD_PLAYLIST = 'addPlaylist',
+  SERVER_EDIT = 'serverEdit'
 }
 
 export class BackResult {
@@ -35,6 +36,8 @@ export class OverlayStore {
   @Trace sheetTitle: string = '';
   @Trace sheetVisible: boolean = false;
   @Trace addToPlaylistIds: string[] = [];
+  /** 服务器编辑浮层：空串表示新增，否则为待编辑的 ServerConfig.id。 */
+  @Trace serverEditId: string = '';
 
   private sheetListener: (visible: boolean) => void = () => {
   };
@@ -109,6 +112,12 @@ export class OverlayStore {
   openAddToPlaylist(ids: string[]): void {
     this.addToPlaylistIds = ids.slice();
     this.openSheet(SheetKind.ADD_PLAYLIST, '加入歌单');
+  }
+
+  /** 打开服务器编辑浮层：serverId 为空时新增，否则编辑对应服务器。 */
+  openServerEdit(serverId: string): void {
+    this.serverEditId = serverId;
+    this.openSheet(SheetKind.SERVER_EDIT, serverId.length > 0 ? '编辑服务器' : '添加服务器');
   }
 
   closeSheet(): void {

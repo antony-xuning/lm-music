@@ -63,7 +63,7 @@ export struct LyricAdjustSheet {
         .backgroundColor(config.panelColor)
         .border({
           width: overlayStore.lyricTheme === config.theme ? 2 : 1,
-          color: overlayStore.lyricTheme === config.theme ? themeStore.palette.brand : '#33FFFFFF'
+          color: overlayStore.lyricTheme === config.theme ? themeStore.palette.brand : themeStore.palette.softBorder
         })
       Text(config.name)
         .fontSize(10)
@@ -146,7 +146,7 @@ export struct LyricAdjustSheet {
                 .fontColor(themeStore.palette.text)
                 .padding({ left: 12, right: 12, top: 7, bottom: 7 })
                 .borderRadius(14)
-                .backgroundColor('#22FFFFFF')
+                .backgroundColor(themeStore.palette.controlBg)
                 .onClick(() => {
                   this.shiftOffset(-500);
                 })
@@ -156,7 +156,7 @@ export struct LyricAdjustSheet {
                 .fontColor(themeStore.palette.text)
                 .padding({ left: 12, right: 12, top: 7, bottom: 7 })
                 .borderRadius(14)
-                .backgroundColor('#22FFFFFF')
+                .backgroundColor(themeStore.palette.controlBg)
                 .onClick(() => {
                   this.shiftOffset(-100);
                 })
@@ -166,7 +166,7 @@ export struct LyricAdjustSheet {
                 .fontColor(themeStore.palette.text)
                 .padding({ left: 12, right: 12, top: 7, bottom: 7 })
                 .borderRadius(14)
-                .backgroundColor('#22FFFFFF')
+                .backgroundColor(themeStore.palette.controlBg)
                 .onClick(() => {
                   this.shiftOffset(100);
                 })
@@ -176,7 +176,7 @@ export struct LyricAdjustSheet {
                 .fontColor(themeStore.palette.text)
                 .padding({ left: 12, right: 12, top: 7, bottom: 7 })
                 .borderRadius(14)
-                .backgroundColor('#22FFFFFF')
+                .backgroundColor(themeStore.palette.controlBg)
                 .onClick(() => {
                   this.shiftOffset(500);
                 })

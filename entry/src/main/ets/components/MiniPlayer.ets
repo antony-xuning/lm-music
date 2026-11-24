@@ -8,6 +8,7 @@
  * 点击非按钮区域打开全屏播放器（走收缩/展开过渡）。
  */
 import { DockMetrics } from '../common/Constants';
+import { ImmersiveGlass } from '../common/ImmersiveGlass';
 import { PlayableItem, PlayerStatus } from '../model/MediaModels';
 import { colorService } from '../service/ColorService';
 import { Formatters } from '../service/Formatters';
@@ -24,6 +25,12 @@ export struct MiniPlayer {
       return new PlayableItem();
     }
     return item;
+  }
+
+  /** 空闲占位标题：无曲目时胶囊仍常驻（华为音乐式）。 */
+  private displayTitle(): string {
+    const item: PlayableItem | null = playerStore.current;
+    return item !== null && item.title.length > 0 ? item.title : '暂无播放';
   }
 
   private progressPercent(): string {
@@ -49,33 +56,33 @@ export struct MiniPlayer {
     return themeStore.isDark ? '#CC000000' : '#B3FFFFFF';
   }
 
-  private controlBg(): string {
-    return themeStore.isDark ? '#1FFFFFFF' : '#14000000';
-  }
-
-  /** 播放条玻璃底色：与 Dock 的 headerGlass 同色系，低 alpha 只作轻色调，通透靠 backgroundEffect。 */
-  private glassBg(): string {
-    return themeStore.isDark ? '#1A1A1F73' : '#F7F7FA73';
-  }
-
-  /** 玻璃边缘高光：模拟折射的 1px 亮边，深浅主题各取合适对比度。 */
-  private glassEdge(): string {
-    return themeStore.isDark ? '#2EFFFFFF' : '#4DFFFFFF';
-  }
-
+  /** 播放键：仅保留三角/双条图标本身，不再绘制外围玻璃珠圆底。 */
   @Builder
   playButton() {
     Stack() {
-      Image(playerStore.isPlaying ? $r('app.media.ic_pause') : $r('app.media.ic_play'))
-        .width(18)
-        .height(18)
-        .fillColor(themeStore.palette.text)
-        .shadow({ radius: 3, color: this.textShadowColor(), offsetX: 0, offsetY: 1 })
+      if (playerStore.isPlaying) {
+        Image($r('app.media.ic_pause'))
+          .width(24)
+          .height(24)
+          .fillColor(themeStore.palette.text)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      } else {
+        Image($r('app.media.ic_play'))
+          .width(24)
+          .height(24)
+          .fillColor(themeStore.palette.text)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      }
     }
-    .width(34)
-    .height(34)
-    .borderRadius(17)
-    .backgroundColor(this.controlBg())
+    .width(40)
+    .height(40)
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       playerStore.toggle();
     })
@@ -85,14 +92,18 @@ export struct MiniPlayer {
   nextButton() {
     Stack() {
       Image($r('app.media.ic_next'))
-        .width(17)
-        .height(17)
+        .width(20)
+        .height(20)
         .fillColor(themeStore.palette.text)
-        .shadow({ radius: 3, color: this.textShadowColor(), offsetX: 0, offsetY: 1 })
     }
-    .width(32)
-    .height(32)
+    .width(36)
+    .height(36)
     .borderRadius(16)
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       playerStore.next(false);
     })
@@ -102,14 +113,18 @@ export struct MiniPlayer {
   queueButton() {
     Stack() {
       Image($r('app.media.ic_queue'))
-        .width(17)
-        .height(17)
+        .width(20)
+        .height(20)
         .fillColor(themeStore.palette.text)
-        .shadow({ radius: 3, color: this.textShadowColor(), offsetX: 0, offsetY: 1 })
     }
-    .width(32)
-    .height(32)
+    .width(36)
+    .height(36)
     .borderRadius(16)
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       overlayStore.openSheet(SheetKind.QUEUE, '播放队列');
     })
@@ -117,8 +132,27 @@ export struct MiniPlayer {
 
   build() {
     Column() {
-      if (playerStore.current !== null) {
-        Stack({ alignContent: Alignment.Top }) {
+      Stack({ alignContent: Alignment.TopStart }) {
+          // 层 1：垂直折射渐变（顶部受光、中部通透、底部微沉）。
+          Column()
+            .width('100%')
+            .height('100%')
+            .linearGradient({ angle: 180, colors: ImmersiveGlass.barTint() })
+
+          // 层 1.5：沉浸光感——封面主色环境光，光源落在封面处向胶囊四周扩散；
+          // 播放时点亮、暂停时收敛，随换曲实时变色。
+          Column()
+            .width('100%')
+            .height('100%')
+            .radialGradient({
+              center: [30, DockMetrics.PLAYER_HEIGHT / 2],
+              radius: 130,
+              colors: ImmersiveGlass.ambientStops()
+            })
+            .opacity(playerStore.isPlaying ? 1 : 0.55)
+            .animation({ duration: 600, curve: Curve.EaseInOut })
+
+          // 层 2：内容（进度段 + 控件行）。（原顶部扫光层移除：与描边错位后呈游离白线。）
           Column() {
             // 有进度时才画顶部进度段；不画整条轨道，避免出现横线。
             if (this.hasProgress()) {
@@ -147,7 +181,7 @@ export struct MiniPlayer {
               })
 
               Column({ space: 2 }) {
-                Text(this.currentItem().title)
+                Text(this.displayTitle())
                   .fontSize(13)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(themeStore.palette.text)
@@ -179,15 +213,19 @@ export struct MiniPlayer {
         .width('100%')
         .height(DockMetrics.PLAYER_HEIGHT)
         .borderRadius(DockMetrics.PLAYER_HEIGHT / 2)
-        .backgroundColor(this.glassBg())
-        .backgroundEffect({ radius: 24, saturation: 1.8, brightness: 1.1 })
-        .border({ width: 0.8, color: this.glassEdge() })
-        .shadow({ radius: 16, color: themeStore.isDark ? '#33000000' : '#1A000000', offsetX: 0, offsetY: 6 })
+        .backgroundColor(ImmersiveGlass.barBase())
+        .backgroundEffect({ radius: 32, saturation: 1.35, brightness: 1.05 })
+        .border({ width: 1, color: ImmersiveGlass.barEdge() })
+        .shadow({ radius: 26, color: ImmersiveGlass.ambientGlow(), offsetX: 0, offsetY: 10 })
         .clip(true)
+        .stateStyles({
+          pressed: { .scale({ x: 0.98, y: 0.98 }) },
+          normal: { .scale({ x: 1, y: 1 }) }
+        })
+        .animation({ duration: 130, curve: Curve.EaseOut })
         .onClick(() => {
           overlayStore.openPlayer();
         })
-      }
     }
     .width('100%')
   }
@@ -195,7 +233,7 @@ export struct MiniPlayer {
   private subtitleText(): string {
     const item: PlayableItem | null = playerStore.current;
     if (item === null) {
-      return '';
+      return '挑选一首喜欢的歌开始聆听';
     }
     if (playerStore.status === PlayerStatus.LOADING || playerStore.status === PlayerStatus.RESOLVING) {
       return '正在加载…';

@@ -48,6 +48,8 @@ export class PlayerStore {
   private trackListeners: TrackListener[] = [];
   private progressListeners: ProgressListener[] = [];
   private loadedKey: string = '';
+  /** 暂停超时释放长时任务的定时器句柄；-1 表示未挂起。 */
+  private pauseReleaseTimer: number = -1;
   private favoriteProvider: (songKey: string) => boolean = () => false;
   private favoriteToggler: (songKey: string) => void = () => {
   };
@@ -87,6 +89,41 @@ export class PlayerStore {
       this.syncSession(true);
     };
     this.restore();
+  }
+
+  /** 播放状态变化：暂停挂起超时释放定时器；恢复播放立即重新申请长时任务。 */
+  @Monitor('status')
+  onStatusChange(): void {
+    if (this.status === PlayerStatus.PLAYING) {
+      this.cancelPauseRelease();
+      backgroundPlaybackService.start();
+    } else if (this.status === PlayerStatus.PAUSED) {
+      this.schedulePauseRelease();
+    } else {
+      this.cancelPauseRelease();
+    }
+  }
+
+  /** 暂停超过阈值后释放 audioPlayback 长时任务（省电）。 */
+  private schedulePauseRelease(): void {
+    this.cancelPauseRelease();
+    if (!backgroundPlaybackService.active) {
+      return;
+    }
+    this.pauseReleaseTimer = setTimeout(() => {
+      this.pauseReleaseTimer = -1;
+      if (this.status === PlayerStatus.PAUSED) {
+        // 仅释放长时任务，AVSession 保持激活；恢复播放时 start() 幂等重申。
+        backgroundPlaybackService.stop();
+      }
+    }, AppConstants.PAUSE_BACKGROUND_RELEASE_MS);
+  }
+
+  private cancelPauseRelease(): void {
+    if (this.pauseReleaseTimer >= 0) {
+      clearTimeout(this.pauseReleaseTimer);
+      this.pauseReleaseTimer = -1;
+    }
   }
 
   /** 收藏状态查询/切换由界面层注入，避免 Store 之间循环依赖。 */

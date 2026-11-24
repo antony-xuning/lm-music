@@ -267,6 +267,11 @@ export struct HomeHeader {
     .height(38)
     .borderRadius(19)
     .backgroundColor(themeStore.isDark ? '#22FFFFFF' : '#14000000')
+    .stateStyles({
+      pressed: { .scale({ x: 0.88, y: 0.88 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       action();
     })
@@ -289,6 +294,11 @@ export struct HomeHeader {
     .padding({ left: 12, right: 10 })
     .borderRadius(19)
     .backgroundColor(themeStore.isDark ? '#22FFFFFF' : '#14000000')
+    .stateStyles({
+      pressed: { .scale({ x: 0.92, y: 0.92 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .bindMenu(this.downloadMenuBuilder())
   }
 
@@ -314,6 +324,11 @@ export struct HomeHeader {
     .borderRadius(19)
     .backgroundColor('#1EFA2D48')
     .border({ width: 1, color: '#55FA2D48' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.92, y: 0.92 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .bindMenu(this.sourceMenuBuilder())
   }
 
@@ -341,6 +356,11 @@ export struct HomeHeader {
     .padding({ left: 12, right: 10 })
     .borderRadius(19)
     .backgroundColor(themeStore.isDark ? '#22FFFFFF' : '#14000000')
+    .stateStyles({
+      pressed: { .scale({ x: 0.92, y: 0.92 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .bindMenu(this.modeMenuBuilder())
   }
 

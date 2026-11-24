@@ -68,7 +68,7 @@ export struct SettingsView {
           .width(32)
           .height(32)
           .borderRadius(16)
-          .backgroundColor('#22FFFFFF')
+          .backgroundColor(themeStore.palette.controlBg)
           .margin({ left: 8 })
           .onClick(() => {
             overlayStore.openSearch();
@@ -126,7 +126,7 @@ export struct SettingsView {
           })
 
           Divider()
-            .color('#22FFFFFF')
+            .color(themeStore.palette.softDivider)
             .margin({ left: 14, right: 14 })
 
           Row({ space: 8 }) {
@@ -179,7 +179,7 @@ export struct SettingsView {
     .width('100%')
     .height('100%')
     .onDidScroll((delta: number, state: ScrollState) => {
-      scrollChrome.report(this.scroller.currentOffset().yOffset, delta);
+      scrollChrome.reportFromScroller(this.scroller, delta);
     })
   }
 }

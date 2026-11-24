@@ -106,7 +106,7 @@ export struct LyricsPanel {
           ListItem() {
             this.lyricLine(line, index)
           }
-        }, (line: LyricLine, index: number) => `${index}_${line.timeMs}`)
+        }, (line: LyricLine) => `${line.timeMs}_${line.text}`)
 
         ListItem() {
           Column().height(160)

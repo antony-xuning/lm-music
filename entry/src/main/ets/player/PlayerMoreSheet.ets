@@ -87,7 +87,7 @@ export struct PlayerMoreSheet {
       .width(36)
       .height(36)
       .borderRadius(12)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
 
       Column({ space: 2 }) {
         Text(title)
@@ -109,6 +109,11 @@ export struct PlayerMoreSheet {
     }
     .width('100%')
     .padding({ top: 9, bottom: 9 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }).opacity(0.8) },
+      normal: { .scale({ x: 1, y: 1 }).opacity(1) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       action();
     })

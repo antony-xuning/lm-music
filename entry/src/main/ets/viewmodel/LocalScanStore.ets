@@ -46,6 +46,9 @@ export class LocalScanStore {
   @Trace serverAvailable: boolean = false;
 
   private started: boolean = false;
+  /** allTracks 排序缓存：tracks 整体替换前不重复排序（曲库大时避免每次 build 全量排序）。 */
+  private allSortedCache: LocalTrack[] = [];
+  private allSortedSource: LocalTrack[] | null = null;
 
   async init(): Promise<void> {
     if (this.started) {
@@ -153,9 +156,13 @@ export class LocalScanStore {
   }
 
   get allTracks(): LocalTrack[] {
-    const sorted: LocalTrack[] = this.tracks.slice();
-    sorted.sort((a: LocalTrack, b: LocalTrack): number => a.title.localeCompare(b.title));
-    return sorted;
+    if (this.allSortedSource !== this.tracks) {
+      const sorted: LocalTrack[] = this.tracks.slice();
+      sorted.sort((a: LocalTrack, b: LocalTrack): number => a.title.localeCompare(b.title));
+      this.allSortedSource = this.tracks;
+      this.allSortedCache = sorted;
+    }
+    return this.allSortedCache;
   }
 
   async setMode(mode: HomeMode): Promise<void> {

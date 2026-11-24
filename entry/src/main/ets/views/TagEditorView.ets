@@ -178,7 +178,7 @@ export struct TagEditorView {
                   .fontColor(themeStore.palette.text)
                   .placeholderColor(themeStore.palette.sub)
                   .height(36)
-                  .backgroundColor('#22FFFFFF')
+                  .backgroundColor(themeStore.palette.controlBg)
                   .borderRadius(12)
                   .onChange((value: string) => {
                     tagStore.setTitle(value);
@@ -194,7 +194,7 @@ export struct TagEditorView {
                   .fontColor(themeStore.palette.text)
                   .placeholderColor(themeStore.palette.sub)
                   .height(36)
-                  .backgroundColor('#22FFFFFF')
+                  .backgroundColor(themeStore.palette.controlBg)
                   .borderRadius(12)
                   .onChange((value: string) => {
                     tagStore.setArtist(value);
@@ -213,7 +213,7 @@ export struct TagEditorView {
                   .fontColor(themeStore.palette.text)
                   .placeholderColor(themeStore.palette.sub)
                   .height(36)
-                  .backgroundColor('#22FFFFFF')
+                  .backgroundColor(themeStore.palette.controlBg)
                   .borderRadius(12)
                   .onChange((value: string) => {
                     tagStore.setAlbum(value);
@@ -229,7 +229,7 @@ export struct TagEditorView {
                   .fontColor(themeStore.palette.text)
                   .placeholderColor(themeStore.palette.sub)
                   .height(36)
-                  .backgroundColor('#22FFFFFF')
+                  .backgroundColor(themeStore.palette.controlBg)
                   .borderRadius(12)
                   .onChange((value: string) => {
                     tagStore.setGenre(value);
@@ -248,7 +248,7 @@ export struct TagEditorView {
                   .fontColor(themeStore.palette.text)
                   .placeholderColor(themeStore.palette.sub)
                   .height(36)
-                  .backgroundColor('#22FFFFFF')
+                  .backgroundColor(themeStore.palette.controlBg)
                   .borderRadius(12)
                   .onChange((value: string) => {
                     tagStore.setYear(value);
@@ -264,7 +264,7 @@ export struct TagEditorView {
                   .fontColor(themeStore.palette.text)
                   .placeholderColor(themeStore.palette.sub)
                   .height(36)
-                  .backgroundColor('#22FFFFFF')
+                  .backgroundColor(themeStore.palette.controlBg)
                   .borderRadius(12)
                   .onChange((value: string) => {
                     tagStore.setTrack(value);
@@ -286,7 +286,7 @@ export struct TagEditorView {
               .fontColor(themeStore.palette.text)
               .padding({ left: 12, right: 12, top: 7, bottom: 7 })
               .borderRadius(14)
-              .backgroundColor('#22FFFFFF')
+              .backgroundColor(themeStore.palette.controlBg)
               .onClick(() => {
                 tagStore.match(this.source);
               })

@@ -3,6 +3,7 @@
  */
 import { AppConstants } from '../common/Constants';
 import { Logger } from '../common/Logger';
+import { Debouncer } from '../common/Utils';
 import { JsonStore } from '../data/JsonStore';
 import { EpisodeProgressRaw, PodcastsDoc } from '../data/Schemas';
 import { MediaSource, PlayableItem, PlayableKind } from '../model/MediaModels';
@@ -38,6 +39,7 @@ export class PodcastStore {
 
   private started: boolean = false;
   private progress: Map<string, number> = new Map<string, number>();
+  private progressSaver: Debouncer = new Debouncer(5000);
   private pageByFeed: Map<string, number> = new Map<string, number>();
 
   init(): void {
@@ -222,7 +224,10 @@ export class PodcastStore {
       return;
     }
     this.progress.set(episodeId, positionMs);
-    this.persistProgress();
+    // 播放器每 ~900ms 上报一次进度；合并 5 秒内的变化再写盘，避免高频同步 IO。
+    this.progressSaver.run(() => {
+      this.persistProgress();
+    });
   }
 
   private loadProgress(): void {

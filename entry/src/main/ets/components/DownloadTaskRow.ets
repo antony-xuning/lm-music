@@ -3,6 +3,7 @@
  */
 import { ServerDownloadTask } from '../model/ServerModels';
 import { Formatters } from '../service/Formatters';
+import { themeStore } from '../viewmodel/ThemeStore';
 import { Artwork } from './Artwork';
 import { BadgeView } from './Badge';
 
@@ -77,7 +78,12 @@ export struct DownloadTaskRow {
       .fontColor(filled ? '#FFFFFF' : this.textColor)
       .padding({ left: 9, right: 9, top: 5, bottom: 5 })
       .borderRadius(10)
-      .backgroundColor(filled ? this.accent : '#22FFFFFF')
+      .backgroundColor(filled ? this.accent : themeStore.palette.controlBg)
+      .stateStyles({
+        pressed: { .scale({ x: 0.9, y: 0.9 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         action();
       })
@@ -116,7 +122,7 @@ export struct DownloadTaskRow {
           .width('100%')
           .height(4)
           .borderRadius(2)
-          .backgroundColor('#22FFFFFF')
+          .backgroundColor(themeStore.palette.controlBg)
         }
 
         if (this.task.status === 'failed' && this.task.error.length > 0) {
@@ -151,6 +157,11 @@ export struct DownloadTaskRow {
         .width(16)
         .height(16)
         .fillColor(this.subColor)
+        .stateStyles({
+          pressed: { .scale({ x: 0.82, y: 0.82 }).opacity(0.6) },
+          normal: { .scale({ x: 1, y: 1 }).opacity(1) }
+        })
+        .animation({ duration: 120, curve: Curve.EaseOut })
         .onClick(() => {
           this.onShowDetail(this.task);
         })
@@ -158,6 +169,11 @@ export struct DownloadTaskRow {
     .width('100%')
     .padding({ top: 8, bottom: 8, left: 2, right: 2 })
     .alignItems(VerticalAlign.Center)
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.onShowDetail(this.task);
     })

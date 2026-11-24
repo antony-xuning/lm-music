@@ -86,7 +86,7 @@ export struct ServerStatusCard {
             .fontColor(themeStore.palette.sub)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
             .borderRadius(9)
-            .backgroundColor('#22FFFFFF')
+            .backgroundColor(themeStore.palette.controlBg)
         }
       }
       .width('100%')

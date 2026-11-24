@@ -19,24 +19,24 @@ export struct QueueSheet {
   }
 
   @Builder
-  queueRow(item: PlayableItem, index: number) {
+  queueRow(ri: RepeatItem<PlayableItem>) {
     Row({ space: 10 }) {
       Artwork({
-        seed: item.coverSeed,
+        seed: ri.item.coverSeed,
         artworkSize: 40,
         radius: 10,
-        title: item.title,
-        showRing: index === playerStore.currentIndex
+        title: ri.item.title,
+        showRing: ri.index === playerStore.currentIndex
       })
 
       Column({ space: 2 }) {
-        Text(item.title)
-          .fontSize(13)
-          .fontColor(index === playerStore.currentIndex ? themeStore.palette.brand : themeStore.palette.text)
+        Text(ri.item.title)
+          .fontSize(themeStore.font(13))
+          .fontColor(ri.index === playerStore.currentIndex ? themeStore.palette.brand : themeStore.palette.text)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(item.subtitle)
-          .fontSize(10)
+        Text(ri.item.subtitle)
+          .fontSize(themeStore.font(10))
           .fontColor(themeStore.palette.sub)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -44,8 +44,8 @@ export struct QueueSheet {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
 
-      Text(Formatters.duration(item.durationMs))
-        .fontSize(10)
+      Text(Formatters.duration(ri.item.durationMs))
+        .fontSize(themeStore.font(10))
         .fontColor(themeStore.palette.sub)
 
       Stack() {
@@ -57,14 +57,24 @@ export struct QueueSheet {
       .width(26)
       .height(26)
       .borderRadius(13)
+      .stateStyles({
+        pressed: { .scale({ x: 0.82, y: 0.82 }).opacity(0.6) },
+        normal: { .scale({ x: 1, y: 1 }).opacity(1) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
-        playerStore.removeFromQueue(index);
+        playerStore.removeFromQueue(ri.index);
       })
     }
     .width('100%')
     .padding({ top: 7, bottom: 7 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
-      this.playAt(index);
+      this.playAt(ri.index);
     })
   }
 
@@ -87,6 +97,11 @@ export struct QueueSheet {
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
             .borderRadius(13)
             .backgroundColor(themeStore.palette.brand)
+            .stateStyles({
+              pressed: { .scale({ x: 0.92, y: 0.92 }) },
+              normal: { .scale({ x: 1, y: 1 }) }
+            })
+            .animation({ duration: 120, curve: Curve.EaseOut })
             .onClick(() => {
               if (playerStore.queue.length > 0) {
                 playerStore.currentIndex = 0;
@@ -100,7 +115,12 @@ export struct QueueSheet {
             .fontColor(themeStore.palette.sub)
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
             .borderRadius(13)
-            .backgroundColor('#22FFFFFF')
+            .backgroundColor(themeStore.palette.controlBg)
+            .stateStyles({
+              pressed: { .scale({ x: 0.92, y: 0.92 }) },
+              normal: { .scale({ x: 1, y: 1 }) }
+            })
+            .animation({ duration: 120, curve: Curve.EaseOut })
             .onClick(() => {
               ConfirmDialog.confirm(this.getUIContext(), '清空队列', '队列清空后当前播放将停止。', '清空')
                 .then((ok: boolean) => {
@@ -124,15 +144,20 @@ export struct QueueSheet {
             .padding({ top: 40, bottom: 40 })
         } else {
           List() {
-            ForEach(playerStore.queue, (item: PlayableItem, index: number) => {
-              ListItem() {
-                this.queueRow(item, index)
-              }
-            }, (item: PlayableItem, index: number) => `${item.id}_${index}`)
+            // Repeat 虚拟滚动：队列长度不设上限，仅创建可视区+预加载区的节点。
+            // 队列可能出现重复曲目，键值需带 index 保证唯一（列表不做重排，代价可接受）。
+            Repeat<PlayableItem>(playerStore.queue)
+              .key((item: PlayableItem, index: number) => `${item.id}_${index}`)
+              .each((ri: RepeatItem<PlayableItem>) => {
+                ListItem() {
+                  this.queueRow(ri)
+                }
+              })
+              .virtualScroll()
           }
           .width('100%')
           .constraintSize({ maxHeight: 420 })
-          .divider({ strokeWidth: 0.5, color: '#1AFFFFFF' })
+          .divider({ strokeWidth: 0.5, color: themeStore.palette.softDivider })
           .scrollBar(BarState.Off)
           .cachedCount(6)
         }

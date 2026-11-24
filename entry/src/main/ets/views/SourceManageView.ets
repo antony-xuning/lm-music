@@ -102,7 +102,7 @@ export struct SourceManageView {
             .placeholderColor(themeStore.palette.sub)
             .layoutWeight(1)
             .height(38)
-            .backgroundColor('#22FFFFFF')
+            .backgroundColor(themeStore.palette.controlBg)
             .borderRadius(12)
             .onChange((value: string) => {
               this.importUrl = value;
@@ -131,7 +131,7 @@ export struct SourceManageView {
       .fontColor(platform.enabled ? themeStore.palette.text : themeStore.palette.sub)
       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .borderRadius(9)
-      .backgroundColor(platform.enabled ? '#33FFFFFF' : '#11FFFFFF')
+      .backgroundColor(platform.enabled ? themeStore.palette.controlBgStrong : themeStore.palette.softFill)
       .onClick(() => {
         this.togglePlatform(script, platform);
       })
@@ -154,7 +154,7 @@ export struct SourceManageView {
               .fontColor(this.healthTone(script) === 'warn' ? '#FFB44C' : '#2ED3A6')
               .padding({ left: 5, right: 5, top: 1, bottom: 1 })
               .borderRadius(4)
-              .backgroundColor('#22FFFFFF')
+              .backgroundColor(themeStore.palette.controlBg)
           }
           Text(`v${script.version.length > 0 ? script.version : '—'} · ${script.author.length > 0 ? script.author : '未知作者'}`)
             .fontSize(9.5)
@@ -170,7 +170,7 @@ export struct SourceManageView {
           .fontColor(script.active ? themeStore.palette.text : '#FFFFFF')
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
           .borderRadius(10)
-          .backgroundColor(script.active ? '#22FFFFFF' : themeStore.palette.brand)
+          .backgroundColor(script.active ? themeStore.palette.controlBgStrong : themeStore.palette.brand)
           .onClick(() => {
             this.toggle(script);
           })

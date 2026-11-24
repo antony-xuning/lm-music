@@ -144,10 +144,10 @@ export struct DiscoverView {
       if (this.blockState(block) === 'error') {
         Text('重试')
           .fontSize(11)
-          .fontColor('#FFFFFF')
+          .fontColor(themeStore.palette.text)
           .padding({ left: 12, right: 12, top: 6, bottom: 6 })
           .borderRadius(12)
-          .backgroundColor('#22FFFFFF')
+          .backgroundColor(themeStore.palette.controlBg)
           .onClick(() => {
             action();
           })
@@ -453,7 +453,7 @@ export struct DiscoverView {
       .width('100%')
       .height('100%')
       .onDidScroll((delta: number, state: ScrollState) => {
-        scrollChrome.report(this.scroller.currentOffset().yOffset, delta);
+        scrollChrome.reportFromScroller(this.scroller, delta);
       })
     }
     .onRefreshing(() => {

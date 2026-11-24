@@ -68,7 +68,7 @@ export struct PodcastManagePage {
         .fontColor(themeStore.palette.text)
         .padding({ left: 9, right: 9, top: 5, bottom: 5 })
         .borderRadius(10)
-        .backgroundColor('#22FFFFFF')
+        .backgroundColor(themeStore.palette.controlBg)
         .onClick(() => {
           this.refresh(feed);
         })
@@ -116,7 +116,7 @@ export struct PodcastManagePage {
           }
           .width('100%')
           .layoutWeight(1)
-          .divider({ strokeWidth: 0.5, color: '#14FFFFFF' })
+          .divider({ strokeWidth: 0.5, color: themeStore.palette.softDivider })
           .scrollBar(BarState.Off)
         }
       }

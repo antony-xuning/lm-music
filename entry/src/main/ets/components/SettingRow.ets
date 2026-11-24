@@ -1,6 +1,8 @@
 /**
  * 设置行：标题 + 说明 + 右侧控件插槽。
  */
+import { themeStore } from '../viewmodel/ThemeStore';
+
 @ComponentV2
 export struct SettingRow {
   @Param rowTitle: string = '';
@@ -42,7 +44,7 @@ export struct SettingRow {
       if (!this.isLast) {
         Divider()
           .strokeWidth(0.5)
-          .color('#1AFFFFFF')
+          .color(themeStore.palette.softDivider)
           .margin({ left: 14, right: 14 })
       }
     }

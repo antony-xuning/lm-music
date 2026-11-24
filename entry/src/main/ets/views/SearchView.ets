@@ -10,12 +10,15 @@ import { Album, Playlist, Song } from '../model/MediaModels';
 import { DiscoverCollectionKind, DiscoverCollectionParam, SearchScope } from '../model/UiModels';
 import { playlistCardCount } from '../service/DiscoverService';
 import { playVisualSong, queueSong } from '../service/PlaybackLauncher';
+import { DownloadOpResult } from '../service/ServerDownloadService';
 import { SearchService } from '../service/SearchService';
 import { layoutStore } from '../viewmodel/LayoutStore';
 import { libraryStore } from '../viewmodel/LibraryStore';
+import { downloadStore } from '../viewmodel/DownloadStore';
 import { overlayStore } from '../viewmodel/OverlayStore';
 import { searchStore } from '../viewmodel/SearchStore';
 import { serverStore } from '../viewmodel/ServerStore';
+import { settingsStore } from '../viewmodel/SettingsStore';
 import { themeStore } from '../viewmodel/ThemeStore';
 import { ImmersiveGlass } from '../common/ImmersiveGlass';
 
@@ -49,17 +52,22 @@ export struct SearchView {
   }
 
   private showSongActions(song: Song): void {
-    const actions: string[] = ['立即播放', '加入队列', '收藏 / 取消收藏', '加入歌单'];
+    const actions: string[] = ['立即播放', '加入试听列表', '收藏 / 取消收藏', '加入歌单', '下载'];
     ConfirmDialog.actionSheet(this.getUIContext(), song.title, actions).then((index: number) => {
       if (index === 0) {
         playVisualSong([song], 0);
       } else if (index === 1) {
         queueSong(song);
-        ConfirmDialog.toast(this.getUIContext(), '已加入播放队列');
+        ConfirmDialog.toast(this.getUIContext(), '已加入试听列表');
       } else if (index === 2) {
         this.toggleFavorite(song);
       } else if (index === 3) {
         overlayStore.openAddToPlaylist([song.id]);
+      } else if (index === 4) {
+        downloadStore.addFromSong(song, settingsStore.prefs.defaultQuality)
+          .then((result: DownloadOpResult) => {
+            ConfirmDialog.toast(this.getUIContext(), result.message);
+          });
       }
     });
   }
@@ -72,6 +80,11 @@ export struct SearchView {
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(13)
       .backgroundColor(searchStore.scope === scope ? themeStore.palette.brand : '#1F1F26')
+      .stateStyles({
+        pressed: { .scale({ x: 0.92, y: 0.92 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         searchStore.setScope(scope);
       })
@@ -85,6 +98,11 @@ export struct SearchView {
       .padding({ left: 11, right: 11, top: 6, bottom: 6 })
       .borderRadius(13)
       .backgroundColor('#1F1F26')
+      .stateStyles({
+        pressed: { .scale({ x: 0.92, y: 0.92 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         searchStore.submit(keyword);
       })
@@ -121,6 +139,11 @@ export struct SearchView {
     }
     .width('100%')
     .padding({ top: 7, bottom: 7 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openAlbum(album);
     })
@@ -157,6 +180,11 @@ export struct SearchView {
     }
     .width('100%')
     .padding({ top: 7, bottom: 7 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openPlaylist(playlist);
     })
@@ -187,7 +215,7 @@ export struct SearchView {
       }
       .padding({ left: 12, right: 8 })
       .borderRadius(16)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .layoutWeight(1)
 
       Text('取消')
@@ -303,27 +331,40 @@ export struct SearchView {
           }
           .width('100%')
 
-          Column() {
-            ForEach(searchStore.results.songs, (song: Song, index: number) => {
-              SongRow({
-                song: song,
-                index: index,
-                textColor: themeStore.palette.text,
-                subColor: themeStore.palette.sub,
-                accent: themeStore.palette.brand,
-                onTap: (item: Song) => {
-                  playVisualSong(searchStore.results.songs, index);
-                },
-                onMore: (item: Song) => {
-                  this.showSongActions(item);
+          List() {
+            // Repeat 虚拟滚动：搜索结果可通过"加载更多"持续增长，仅渲染可视区+预加载区。
+            Repeat<Song>(searchStore.results.songs)
+              .key((song: Song) => song.id)
+              .each((ri: RepeatItem<Song>) => {
+                ListItem() {
+                  SongRow({
+                    ri: ri,
+                    textColor: themeStore.palette.text,
+                    subColor: themeStore.palette.sub,
+                    accent: themeStore.palette.brand,
+                    onTap: (item: Song) => {
+                      playVisualSong(searchStore.results.songs, ri.index);
+                    },
+                    onMore: (item: Song) => {
+                      this.showSongActions(item);
+                    }
+                  })
                 }
               })
-            }, (song: Song) => song.id)
+              .virtualScroll()
           }
           .width('100%')
+          .constraintSize({ maxHeight: 640 })
           .padding({ left: 8, right: 8 })
           .borderRadius(16)
           .backgroundColor(themeStore.palette.card)
+          .scrollBar(BarState.Off)
+          .cachedCount(8)
+          // 内层列表位于外层 Scroll 中：先滚内层到底，再交给外层继续滚动。
+          .nestedScroll({
+            scrollForward: NestedScrollMode.SELF_FIRST,
+            scrollBackward: NestedScrollMode.SELF_FIRST
+          })
         }
 
         if (searchStore.scope === SearchScope.ALBUM && searchStore.results.albums.length > 0) {

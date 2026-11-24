@@ -36,9 +36,14 @@ export class AppConstants {
   static readonly RESPONSE_MAX_BYTES: number = 12 * 1024 * 1024;
 
   // 缓存时效
-  static readonly PLAY_URL_TTL_MS: number = 10 * 60 * 1000;
+  /** 播放票据约 10 分钟有效，缓存留出 1 分钟安全边界。 */
+  static readonly PLAY_URL_TTL_MS: number = 9 * 60 * 1000;
   static readonly DISCOVER_CACHE_TTL_MS: number = 5 * 60 * 1000;
   static readonly SYNC_MIN_INTERVAL_MS: number = 60 * 1000;
+
+  // 后台播放
+  /** 暂停超过该时长后释放 audioPlayback 长时任务（省电）；恢复播放时自动重新申请。 */
+  static readonly PAUSE_BACKGROUND_RELEASE_MS: number = 5 * 60 * 1000;
 
   // 同步
   static readonly SYNC_PAGE_SIZE: number = 200;

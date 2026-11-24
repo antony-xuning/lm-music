@@ -13,15 +13,18 @@ import { Album, Playlist, Song } from '../model/MediaModels';
 import { LibraryDetailParam, LibraryKind } from '../model/UiModels';
 import { Formatters } from '../service/Formatters';
 import { ImportResult, ImportService } from '../service/ImportService';
-import { playVisualSong } from '../service/PlaybackLauncher';
+import { playVisualSong, queueSong } from '../service/PlaybackLauncher';
+import { DownloadOpResult } from '../service/ServerDownloadService';
 import { WriteOutcome } from '../viewmodel/LibraryModels';
 import { layoutStore } from '../viewmodel/LayoutStore';
 import { libraryStore } from '../viewmodel/LibraryStore';
 import { localScanStore } from '../viewmodel/LocalScanStore';
+import { downloadStore } from '../viewmodel/DownloadStore';
 import { overlayStore } from '../viewmodel/OverlayStore';
 import { playerStore } from '../viewmodel/PlayerStore';
 import { podcastStore } from '../viewmodel/PodcastStore';
 import { serverStore } from '../viewmodel/ServerStore';
+import { settingsStore } from '../viewmodel/SettingsStore';
 import { syncStore } from '../viewmodel/SyncStore';
 import { themeStore } from '../viewmodel/ThemeStore';
 import { scrollChrome } from '../viewmodel/ScrollChromeStore';
@@ -39,6 +42,12 @@ export struct LibraryView {
   @Local showNameDialog: boolean = false;
   @Local nameInput: string = '';
   private scroller: Scroller = new Scroller();
+  /** 排序/专辑切片缓存：避免 build 中反复 slice+sort 生成新数组导致整列表重建。 */
+  private sortedCache: Song[] = [];
+  private sortedCacheKey: string = '';
+  private albumsCache: Album[] = [];
+  private albumsCacheKey: string = '';
+  private selectedSet: Set<string> = new Set<string>();
 
   aboutToAppear(): void {
     podcastStore.loadFeeds();
@@ -51,16 +60,23 @@ export struct LibraryView {
     return libraryStore.localSongs.length + libraryStore.scannedSongs.length;
   }
 
-  /** 全部歌曲：按当前排序方式返回。 */
+  /** 全部歌曲：按当前排序方式返回，结果缓存到排序条件/曲库版本变化为止。 */
   private sortedSongs(): Song[] {
+    const key: string = `${this.sortMode}|${libraryStore.songCount}|${libraryStore.syncedAt}|`
+      + `${libraryStore.localSongs.length}|${libraryStore.scannedSongs.length}`;
+    if (key === this.sortedCacheKey) {
+      return this.sortedCache;
+    }
     const list: Song[] = libraryStore.allSongs.slice();
     if (this.sortMode === 1) {
-      list.sort((a: Song, b: Song) => a.title < b.title ? -1 : 1);
+      list.sort((a: Song, b: Song) => a.title === b.title ? 0 : (a.title < b.title ? -1 : 1));
     } else if (this.sortMode === 2) {
-      list.sort((a: Song, b: Song) => a.artist < b.artist ? -1 : 1);
+      list.sort((a: Song, b: Song) => a.artist === b.artist ? 0 : (a.artist < b.artist ? -1 : 1));
     } else {
       list.sort((a: Song, b: Song) => b.addedAt - a.addedAt);
     }
+    this.sortedCache = list;
+    this.sortedCacheKey = key;
     return list;
   }
 
@@ -82,14 +98,14 @@ export struct LibraryView {
     return name.length > 0 ? name : '服务器';
   }
 
-  /** 最近添加：按加入时间排序的前若干专辑。 */
+  /** 最近添加：按加入时间排序的前若干专辑（同一次 build 内复用缓存）。 */
   private recentAlbums(): Album[] {
-    const result: Album[] = [];
-    const albums: Album[] = libraryStore.albums;
-    for (let i = 0; i < albums.length && i < 6; i++) {
-      result.push(albums[i]);
+    const key: string = `${libraryStore.albums.length}|${libraryStore.syncedAt}`;
+    if (key !== this.albumsCacheKey) {
+      this.albumsCache = libraryStore.albums.slice(0, 6);
+      this.albumsCacheKey = key;
     }
-    return result;
+    return this.albumsCache;
   }
 
   // ---------------- 交互 ----------------
@@ -154,19 +170,31 @@ export struct LibraryView {
   }
 
   private showSongActions(song: Song): void {
-    const actions: string[] = ['立即播放', '加入队列', song.isFavorite ? '取消喜欢' : '喜欢', '加入歌单', '查看歌曲信息'];
+    const actions: string[] = ['立即播放', '加入试听列表', song.isFavorite ? '取消喜欢' : '喜欢', '加入歌单'];
+    if (!song.isLocal) {
+      actions.push('下载');
+    }
+    actions.push('查看歌曲信息');
     ConfirmDialog.actionSheet(this.getUIContext(), song.title, actions).then((index: number) => {
       if (index === 0) {
         playVisualSong([song], 0);
       } else if (index === 1) {
-        overlayStore.openAddToPlaylist([song.id]);
+        queueSong(song);
+        ConfirmDialog.toast(this.getUIContext(), '已加入试听列表');
       } else if (index === 2) {
         libraryStore.toggleFavorite(song.id).then((outcome) => {
           ConfirmDialog.toast(this.getUIContext(), outcome.message);
         });
       } else if (index === 3) {
         overlayStore.openAddToPlaylist([song.id]);
-      } else if (index === 4) {
+      } else if (index === 4 && !song.isLocal) {
+        downloadStore.addFromSong(song, settingsStore.prefs.defaultQuality).then((result: DownloadOpResult) => {
+          ConfirmDialog.toast(this.getUIContext(), result.message);
+        });
+      } else if (index === 4 && song.isLocal) {
+        ConfirmDialog.toast(this.getUIContext(),
+          `${song.format} · ${Formatters.bytes(song.sizeBytes)} · ${song.filePath.length > 0 ? song.filePath : '本地文件'}`);
+      } else if (index === 5 && !song.isLocal) {
         ConfirmDialog.toast(this.getUIContext(),
           `${song.format} · ${Formatters.bytes(song.sizeBytes)} · ${song.filePath.length > 0 ? song.filePath : '本地文件'}`);
       }
@@ -189,29 +217,40 @@ export struct LibraryView {
 
   // ---------------- 多选 ----------------
 
+  /** 用 Set 做 O(1) 查询，同时重新赋值 @Local 数组以驱动 UI。 */
+  private applySelectedIds(ids: string[]): void {
+    this.selectedSet = new Set<string>(ids);
+    this.selectedIds = ids.slice();
+  }
+
   private toggleSelection(song: Song): void {
-    const index: number = this.selectedIds.indexOf(song.id);
-    if (index >= 0) {
-      this.selectedIds.splice(index, 1);
+    const next: Set<string> = new Set<string>(this.selectedSet);
+    if (next.has(song.id)) {
+      next.delete(song.id);
     } else {
-      this.selectedIds.push(song.id);
+      next.add(song.id);
     }
+    const ids: string[] = [];
+    next.forEach((id: string): void => {
+      ids.push(id);
+    });
+    this.applySelectedIds(ids);
   }
 
   private isSelected(song: Song): boolean {
-    return this.selectedIds.indexOf(song.id) >= 0;
+    return this.selectedSet.has(song.id);
   }
 
   private exitSelection(): void {
     this.selectionMode = false;
-    this.selectedIds = [];
+    this.applySelectedIds([]);
   }
 
   private playSelected(): void {
     const chosen: Song[] = [];
     const all: Song[] = this.sortedSongs();
     for (let i = 0; i < all.length; i++) {
-      if (this.selectedIds.indexOf(all[i].id) >= 0) {
+      if (this.selectedSet.has(all[i].id)) {
         chosen.push(all[i]);
       }
     }
@@ -288,6 +327,11 @@ export struct LibraryView {
     .height(38)
     .borderRadius(19)
     .backgroundColor(themeStore.isDark ? '#22FFFFFF' : '#14000000')
+    .stateStyles({
+      pressed: { .scale({ x: 0.88, y: 0.88 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       action();
     })
@@ -399,6 +443,11 @@ export struct LibraryView {
           .padding({ left: 10, right: 10, top: 6, bottom: 6 })
           .borderRadius(12)
           .backgroundColor('#33FFFFFF')
+          .stateStyles({
+            pressed: { .scale({ x: 0.92, y: 0.92 }) },
+            normal: { .scale({ x: 1, y: 1 }) }
+          })
+          .animation({ duration: 120, curve: Curve.EaseOut })
           .onClick(() => {
             this.sync();
           })
@@ -409,6 +458,11 @@ export struct LibraryView {
             .padding({ left: 10, right: 10, top: 6, bottom: 6 })
             .borderRadius(12)
             .backgroundColor('#22FFFFFF')
+            .stateStyles({
+              pressed: { .scale({ x: 0.92, y: 0.92 }) },
+              normal: { .scale({ x: 1, y: 1 }) }
+            })
+            .animation({ duration: 120, curve: Curve.EaseOut })
             .onClick(() => {
               this.switchToLocal();
             })
@@ -503,6 +557,11 @@ export struct LibraryView {
     .borderRadius(20)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openDetail(LibraryKind.ALBUM, '全部专辑');
     })
@@ -554,6 +613,11 @@ export struct LibraryView {
     .borderRadius(20)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openDetail(LibraryKind.FAVORITES, '我喜欢的音乐');
     })
@@ -606,6 +670,11 @@ export struct LibraryView {
     .borderRadius(16)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openDetail(LibraryKind.ALL, '全部歌曲');
     })
@@ -658,6 +727,11 @@ export struct LibraryView {
     .borderRadius(16)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openDetail(LibraryKind.DOWNLOADED, '已下载');
     })
@@ -710,6 +784,11 @@ export struct LibraryView {
     .borderRadius(16)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       overlayStore.openPodcast();
     })
@@ -762,6 +841,11 @@ export struct LibraryView {
     .borderRadius(16)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openDetail(LibraryKind.ARTIST, '全部歌手');
     })
@@ -857,6 +941,11 @@ export struct LibraryView {
     }
     .width(92)
     .alignItems(HorizontalAlign.Start)
+    .stateStyles({
+      pressed: { .scale({ x: 0.95, y: 0.95 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openDetail(LibraryKind.PLAYLIST, playlist.name, playlist.id);
     })
@@ -896,6 +985,11 @@ export struct LibraryView {
     }
     .width(92)
     .alignItems(HorizontalAlign.Center)
+    .stateStyles({
+      pressed: { .scale({ x: 0.95, y: 0.95 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.nameInput = '';
       this.showNameDialog = true;
@@ -972,6 +1066,11 @@ export struct LibraryView {
     }
     .width(100)
     .alignItems(HorizontalAlign.Start)
+    .stateStyles({
+      pressed: { .scale({ x: 0.95, y: 0.95 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openDetail(LibraryKind.ALBUM, album.title, album.id);
     })
@@ -1084,7 +1183,7 @@ export struct LibraryView {
             .width(20)
             .height(20)
             .borderRadius(10)
-            .border({ width: 1.5, color: this.isSelected(song) ? '#FA2D48' : '#66FFFFFF' })
+            .border({ width: 1.5, color: this.isSelected(song) ? '#FA2D48' : themeStore.palette.softBorder })
             .backgroundColor(this.isSelected(song) ? '#FA2D48' : Color.Transparent)
           if (this.isSelected(song)) {
             Image($r('app.media.ic_check')).width(12).height(12).fillColor('#FFFFFF')
@@ -1134,6 +1233,11 @@ export struct LibraryView {
     }
     .width('100%')
     .padding({ top: 7, bottom: 7, left: 8, right: 8 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       if (this.selectionMode) {
         this.toggleSelection(song);
@@ -1178,7 +1282,7 @@ export struct LibraryView {
             .fontSize(11)
             .fontColor(themeStore.palette.text)
             .onClick(() => {
-              this.selectedIds = this.sortedSongs().map((s: Song) => s.id);
+              this.applySelectedIds(this.sortedSongs().map((s: Song) => s.id));
             })
           Text('加入歌单')
             .fontSize(11)
@@ -1186,6 +1290,11 @@ export struct LibraryView {
             .padding({ left: 12, right: 12, top: 7, bottom: 7 })
             .borderRadius(14)
             .backgroundColor('#FA2D48')
+            .stateStyles({
+              pressed: { .scale({ x: 0.92, y: 0.92 }) },
+              normal: { .scale({ x: 1, y: 1 }) }
+            })
+            .animation({ duration: 120, curve: Curve.EaseOut })
             .onClick(() => {
               this.addSelectedToPlaylist();
             })
@@ -1195,6 +1304,11 @@ export struct LibraryView {
             .padding({ left: 12, right: 12, top: 7, bottom: 7 })
             .borderRadius(14)
             .backgroundColor('#33FFFFFF')
+            .stateStyles({
+              pressed: { .scale({ x: 0.92, y: 0.92 }) },
+              normal: { .scale({ x: 1, y: 1 }) }
+            })
+            .animation({ duration: 120, curve: Curve.EaseOut })
             .onClick(() => {
               this.playSelected();
             })
@@ -1217,6 +1331,11 @@ export struct LibraryView {
           .padding({ left: 16, right: 16, top: 9, bottom: 9 })
           .borderRadius(18)
           .backgroundColor('#FA2D48')
+          .stateStyles({
+            pressed: { .scale({ x: 0.92, y: 0.92 }) },
+            normal: { .scale({ x: 1, y: 1 }) }
+          })
+          .animation({ duration: 120, curve: Curve.EaseOut })
           .onClick(() => {
             if (libraryStore.allSongs.length > 0) {
               playVisualSong(this.sortedSongs(), 0);
@@ -1230,9 +1349,14 @@ export struct LibraryView {
           .padding({ left: 14, right: 14, top: 9, bottom: 9 })
           .borderRadius(18)
           .border({ width: 1, color: themeStore.palette.divider })
+          .stateStyles({
+            pressed: { .scale({ x: 0.92, y: 0.92 }) },
+            normal: { .scale({ x: 1, y: 1 }) }
+          })
+          .animation({ duration: 120, curve: Curve.EaseOut })
           .onClick(() => {
             this.selectionMode = true;
-            this.selectedIds = [];
+            this.applySelectedIds([]);
           })
         }
         .width('100%')
@@ -1307,7 +1431,7 @@ export struct LibraryView {
       .width('100%')
       .height('100%')
       .onDidScroll((delta: number, state: ScrollState) => {
-        scrollChrome.report(this.scroller.currentOffset().yOffset, delta);
+        scrollChrome.reportFromScroller(this.scroller, delta);
       })
 
       if (this.showNameDialog) {

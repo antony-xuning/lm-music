@@ -2,6 +2,7 @@
  * 资料库二级页的辅助面板：多选操作条与歌单命名弹窗。
  */
 import { Formatters } from '../service/Formatters';
+import { themeStore } from '../viewmodel/ThemeStore';
 
 @ComponentV2
 export struct LibrarySelectionBar {
@@ -101,7 +102,7 @@ export struct LibraryNameDialog {
         .fontSize(13)
         .fontColor(this.textColor)
         .placeholderColor(this.subColor)
-        .backgroundColor('#22FFFFFF')
+        .backgroundColor(themeStore.palette.controlBg)
         .borderRadius(12)
         .height(40)
         .onChange((value: string) => {
@@ -116,7 +117,7 @@ export struct LibraryNameDialog {
           .textAlign(TextAlign.Center)
           .padding({ top: 9, bottom: 9 })
           .borderRadius(12)
-          .backgroundColor('#22FFFFFF')
+          .backgroundColor(themeStore.palette.controlBg)
           .onClick(() => {
             this.onCancel();
           })

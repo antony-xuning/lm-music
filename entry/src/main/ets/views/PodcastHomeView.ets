@@ -62,7 +62,7 @@ export struct PodcastHomeView {
       .width(34)
       .height(34)
       .borderRadius(17)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .onClick(() => {
         overlayStore.closePodcast();
       })
@@ -88,7 +88,7 @@ export struct PodcastHomeView {
       .width(34)
       .height(34)
       .borderRadius(17)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .onClick(() => {
         this.onOpenManage();
       })
@@ -124,7 +124,7 @@ export struct PodcastHomeView {
             .placeholderColor(themeStore.palette.sub)
             .layoutWeight(1)
             .height(38)
-            .backgroundColor('#22FFFFFF')
+            .backgroundColor(themeStore.palette.controlBg)
             .borderRadius(12)
             .onChange((value: string) => {
               this.rssUrl = value;

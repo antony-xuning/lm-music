@@ -52,6 +52,7 @@ export class DownloadStore {
   private started: boolean = false;
   private timerId: number = -1;
   private lastCompletedCount: number = 0;
+  private lastPersistSignature: string = '';
   private pageVisible: boolean = false;
 
   init(): void {
@@ -167,7 +168,12 @@ export class DownloadStore {
       this.tasks = result.items;
       this.errorText = '';
       this.lastUpdatedAt = Date.now();
-      this.persistCache();
+      // 3 秒轮询常见「状态零变化」，无变化时跳过全量 JSON 序列化与同步写盘。
+      const signature: string = this.taskSignature();
+      if (signature !== this.lastPersistSignature) {
+        this.persistCache();
+        this.lastPersistSignature = signature;
+      }
       this.checkCompletion();
       if (this.activeCount > 0) {
         this.ensurePolling();
@@ -255,10 +261,20 @@ export class DownloadStore {
         list.push(fromCacheRaw(raws[i]));
       }
       this.tasks = list;
+      this.lastPersistSignature = this.taskSignature();
       this.lastCompletedCount = this.completedCount;
     } catch (error) {
       Logger.warn(SCOPE, 'download cache unreadable');
     }
+  }
+
+  private taskSignature(): string {
+    let signature: string = '';
+    for (let i = 0; i < this.tasks.length; i++) {
+      const task: ServerDownloadTask = this.tasks[i];
+      signature += `${task.id}|${task.status}|${task.progress}|${task.bytesDone}|${task.error};`;
+    }
+    return signature;
   }
 
   private persistCache(): void {

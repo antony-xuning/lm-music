@@ -27,6 +27,12 @@ export class LocalTrackTags {
 }
 
 export class MediaTagService {
+  /**
+   * 列表项 build 会反复调用 coverUriOf，命中缓存后避免每行都做 accessSync 同步磁盘探测。
+   * key 为 coverCacheKey（含文件大小与 mtime），内容变化会产生新 key，不会命中旧 URI。
+   */
+  private static coverUriCache: Map<string, string> = new Map<string, string>();
+
   static coverDir(): string {
     return `${AppContextHolder.cacheDir}/${AppConstants.LOCAL_COVER_DIR}`;
   }
@@ -57,15 +63,21 @@ export class MediaTagService {
     if (!track.hasCover || track.coverCacheKey.length === 0) {
       return '';
     }
+    const cached: string | undefined = MediaTagService.coverUriCache.get(track.coverCacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
     const path: string = MediaTagService.coverPathOf(track.coverCacheKey);
+    let uri: string = '';
     try {
       if (fileIo.accessSync(path)) {
-        return `file://${path}`;
+        uri = `file://${path}`;
       }
     } catch (error) {
-      return '';
+      uri = '';
     }
-    return '';
+    MediaTagService.coverUriCache.set(track.coverCacheKey, uri);
+    return uri;
   }
 
   static coverKeyFor(uri: string, sizeBytes: number, mtime: number): string {

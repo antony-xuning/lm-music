@@ -11,7 +11,7 @@ import { GradientHelper } from '../common/Palette';
 import { window } from '@kit.ArkUI';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { AppSlider } from '../components/AppSlider';
-import { MediaSource, MediaSourceHelper, PlayableItem, PlayModeHelper, PlayerStatus, Song } from '../model/MediaModels';
+import { MediaSource, MediaSourceHelper, PlayableItem, PlayMode, PlayModeHelper, PlayerStatus, Song } from '../model/MediaModels';
 import { LyricDoc, LyricLine } from '../model/LyricModels';
 import { Formatters } from '../service/Formatters';
 import { LyricParser } from '../service/LyricParser';
@@ -20,6 +20,7 @@ import { playerStore } from '../viewmodel/PlayerStore';
 import { libraryStore } from '../viewmodel/LibraryStore';
 import { PlayerTargetRect, playerTransition } from '../viewmodel/PlayerTransitionStore';
 import { themeStore } from '../viewmodel/ThemeStore';
+import { DockMetrics } from '../common/Constants';
 import { LyricsPanel } from './LyricsPanel';
 
 @ComponentV2
@@ -263,6 +264,9 @@ export struct FullscreenPlayer {
       return '';
     }
     const index: number = this.previewIndex < 0 ? 0 : this.previewIndex;
+    if (index >= this.previewDoc.lines.length) {
+      return '';
+    }
     return this.previewDoc.lines[index].text;
   }
 
@@ -325,6 +329,11 @@ export struct FullscreenPlayer {
     .height(38)
     .borderRadius(19)
     .backgroundColor('#1FFFFFFF')
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       if (action === 0) {
         this.collapseOrBack();
@@ -335,25 +344,77 @@ export struct FullscreenPlayer {
       }
     })
   }
+
+  /** 参考稿样式：无底色纯图标按钮（action：0 收起 1 返回歌词 2 更多 3 切换播放模式）。 */
   @Builder
-  modePill() {
-    Row({ space: 4 }) {
-      Text(PlayModeHelper.label(playerStore.mode))
-        .fontSize(12)
-        .fontColor('#FFFFFF')
-      Image($r('app.media.ic_chevron_down'))
-        .width(12)
-        .height(12)
-        .fillColor('#B3FFFFFF')
+  plainButton(icon: Resource, action: number) {
+    Stack() {
+      Image(icon)
+        .width(22)
+        .height(22)
+        .fillColor('#FFFFFF')
     }
-    .padding({ left: 12, right: 10, top: 7, bottom: 7 })
-    .borderRadius(16)
-    .backgroundColor('#1FFFFFFF')
+    .width(42)
+    .height(42)
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .onClick(() => {
+      if (action === 0) {
+        this.collapseOrBack();
+      } else if (action === 1) {
+        this.closeLyrics();
+      } else if (action === 2) {
+        overlayStore.openSheet(SheetKind.MORE, '更多操作');
+      } else {
+        playerStore.cycleMode();
+        ConfirmDialog.toast(this.getUIContext(), PlayModeHelper.label(playerStore.mode));
+      }
+    })
+  }
+
+  /** 播放模式按钮：图标随模式缩放淡切（列表循环 / 单曲循环 / 随机播放）。 */
+  @Builder
+  modeButton() {
+    Stack() {
+      if (playerStore.mode === PlayMode.SINGLE_LOOP) {
+        Image($r('app.media.ic_repeat_one'))
+          .width(22)
+          .height(22)
+          .fillColor('#FFFFFF')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      } else if (playerStore.mode === PlayMode.SHUFFLE) {
+        Image($r('app.media.ic_shuffle'))
+          .width(22)
+          .height(22)
+          .fillColor('#FFFFFF')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      } else {
+        Image($r('app.media.ic_repeat'))
+          .width(22)
+          .height(22)
+          .fillColor('#FFFFFF')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      }
+    }
+    .width(42)
+    .height(42)
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       playerStore.cycleMode();
       ConfirmDialog.toast(this.getUIContext(), PlayModeHelper.label(playerStore.mode));
     })
   }
+
   @Builder
   artworkBackground() {
     Stack({ alignContent: Alignment.TopStart }) {
@@ -377,9 +438,10 @@ export struct FullscreenPlayer {
         .width('100%')
         .height('100%')
         .linearGradient({
+          // 参考稿效果：封面中上部保持鲜亮，向下渐隐为深色承托文字与控件。
           angle: 180,
-          colors: [['#73000000', 0.0], ['#26000000', 0.32], ['#C70B0B10', 0.68],
-            ['#F70B0B10', 1.0]]
+          colors: [['#40000000', 0.0], ['#14000000', 0.30], ['#B30B0B10', 0.64],
+            ['#F20B0B10', 0.90], ['#F70B0B10', 1.0]]
         })
     }
     .width('100%')
@@ -389,14 +451,14 @@ export struct FullscreenPlayer {
   }
   @Builder
   coverHeader() {
-    Row({ space: 10 }) {
-      this.navButton($r('app.media.ic_chevron_down'), 0)
+    Row({ space: 6 }) {
+      this.plainButton($r('app.media.ic_chevron_down'), 0)
       Blank()
-      this.modePill()
-      this.navButton($r('app.media.ic_more'), 2)
+      this.modeButton()
+      this.plainButton($r('app.media.ic_more'), 2)
     }
     .width('100%')
-    .padding({ left: 18, right: 18, top: 8 })
+    .padding({ left: 14, right: 14, top: 8 })
     .alignItems(VerticalAlign.Center)
     .gesture(
       PanGesture({ direction: PanDirection.Vertical })
@@ -439,6 +501,11 @@ export struct FullscreenPlayer {
         .padding({ left: 12, right: 12, top: 7, bottom: 7 })
         .borderRadius(16)
         .backgroundColor('#1FFFFFFF')
+        .stateStyles({
+          pressed: { .scale({ x: 0.92, y: 0.92 }) },
+          normal: { .scale({ x: 1, y: 1 }) }
+        })
+        .animation({ duration: 120, curve: Curve.EaseOut })
         .onClick(() => {
           overlayStore.openSheet(SheetKind.LYRIC_ADJUST, '歌词显示');
         })
@@ -489,9 +556,9 @@ export struct FullscreenPlayer {
   }
   @Builder
   titleBlock() {
-    Column({ space: 6 }) {
+    Column({ space: 7 }) {
       Text(this.titleText())
-        .fontSize(30)
+        .fontSize(themeStore.font(30))
         .fontWeight(FontWeight.Bold)
         .fontColor('#FFFFFF')
         .maxLines(1)
@@ -499,13 +566,24 @@ export struct FullscreenPlayer {
         .width('100%')
         .textAlign(TextAlign.Start)
 
-      Text(this.subtitleText())
-        .fontSize(14)
-        .fontColor('#CCFFFFFF')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-        .textAlign(TextAlign.Start)
+      Row({ space: 8 }) {
+        Text(this.subtitleText())
+          .fontSize(themeStore.font(14))
+          .fontColor('#CCFFFFFF')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+
+        // 参考稿中歌手右侧的 VIP 样式徽章，此处承载音源标识。
+        Text(MediaSourceHelper.label(this.sourceOfItem()))
+          .fontSize(10)
+          .fontColor(themeStore.palette.brand)
+          .padding({ left: 7, right: 7, top: 2, bottom: 2 })
+          .borderRadius(6)
+          .border({ width: 1, color: themeStore.palette.brand })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -530,31 +608,41 @@ export struct FullscreenPlayer {
         .borderRadius(7)
         .clip(true)
       }
-
-      Text(MediaSourceHelper.label(this.sourceOfItem()))
-        .fontSize(11)
-        .fontColor('#CCFFFFFF')
-        .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-        .borderRadius(7)
-        .border({ width: 1, color: '#4DFFFFFF' })
     }
     .width('100%')
   }
   @Builder
   heartButton() {
     Stack() {
-      Image(this.liked() ? $r('app.media.ic_heart_fill') : $r('app.media.ic_heart'))
-        .width(24)
-        .height(24)
-        .fillColor(this.liked() ? themeStore.palette.brand : '#F2FFFFFF')
+      if (this.liked()) {
+        Image($r('app.media.ic_heart_fill'))
+          .width(24)
+          .height(24)
+          .fillColor(themeStore.palette.brand)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 240, curve: Curve.Friction })
+            .combine(TransitionEffect.scale({ x: 1.5, y: 1.5 })))
+      } else {
+        Image($r('app.media.ic_heart'))
+          .width(24)
+          .height(24)
+          .fillColor('#F2FFFFFF')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.75, y: 0.75 })))
+      }
     }
     .width(44)
     .height(44)
     .borderRadius(22)
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       this.toggleFavorite();
     })
   }
+
   @Builder
   queueButton() {
     Stack() {
@@ -566,6 +654,11 @@ export struct FullscreenPlayer {
     .width(44)
     .height(44)
     .borderRadius(22)
+    .stateStyles({
+      pressed: { .scale({ x: 0.86, y: 0.86 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       overlayStore.openSheet(SheetKind.QUEUE, '播放队列');
     })
@@ -582,6 +675,11 @@ export struct FullscreenPlayer {
       .width(44)
       .height(44)
       .borderRadius(22)
+      .stateStyles({
+        pressed: { .scale({ x: 0.86, y: 0.86 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         playerStore.seekBy(-15000);
       })
@@ -595,11 +693,17 @@ export struct FullscreenPlayer {
       .width(44)
       .height(44)
       .borderRadius(22)
+      .stateStyles({
+        pressed: { .scale({ x: 0.86, y: 0.86 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         playerStore.previous();
       })
     }
   }
+
   @Builder
   nextButton() {
     if (playerStore.isPodcast) {
@@ -612,6 +716,11 @@ export struct FullscreenPlayer {
       .width(44)
       .height(44)
       .borderRadius(22)
+      .stateStyles({
+        pressed: { .scale({ x: 0.86, y: 0.86 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         playerStore.seekBy(15000);
       })
@@ -625,24 +734,81 @@ export struct FullscreenPlayer {
       .width(44)
       .height(44)
       .borderRadius(22)
+      .stateStyles({
+        pressed: { .scale({ x: 0.86, y: 0.86 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         playerStore.next(false);
       })
     }
   }
+
   @Builder
   playButton(size: number, iconSize: number) {
     Stack() {
-      Image(playerStore.status === PlayerStatus.PLAYING ? $r('app.media.ic_pause') : $r('app.media.ic_play'))
-        .width(iconSize)
-        .height(iconSize)
-        .fillColor('#111113')
+      if (playerStore.status === PlayerStatus.PLAYING) {
+        Image($r('app.media.ic_pause'))
+          .width(iconSize)
+          .height(iconSize)
+          .fillColor('#111113')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      } else {
+        Image($r('app.media.ic_play'))
+          .width(iconSize)
+          .height(iconSize)
+          .fillColor('#111113')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      }
     }
     .width(size)
     .height(size)
     .borderRadius(size / 2)
     .backgroundColor('#F2FFFFFF')
     .shadow({ radius: 16, color: '#40000000', offsetX: 0, offsetY: 6 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.9, y: 0.9 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .onClick(() => {
+      playerStore.toggle();
+    })
+  }
+
+  /** 参考稿样式：白色大胶囊播放/暂停键。 */
+  @Builder
+  pillPlayButton() {
+    Stack() {
+      if (playerStore.status === PlayerStatus.PLAYING) {
+        Image($r('app.media.ic_pause'))
+          .width(24)
+          .height(24)
+          .fillColor('#111113')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      } else {
+        Image($r('app.media.ic_play'))
+          .width(24)
+          .height(24)
+          .fillColor('#111113')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.7, y: 0.7 })))
+      }
+    }
+    .width(78)
+    .height(54)
+    .borderRadius(27)
+    .backgroundColor('#F5FFFFFF')
+    .shadow({ radius: 18, color: '#4D000000', offsetX: 0, offsetY: 8 })
+    .stateStyles({
+      pressed: { .scale({ x: 0.94, y: 0.94 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
       playerStore.toggle();
     })
@@ -650,13 +816,30 @@ export struct FullscreenPlayer {
 
   @Builder
   actionRow() {
-    Row({ space: 4 }) {
+    Row({ space: 8 }) {
       this.heartButton()
       this.queueButton()
+      Stack() {
+        Image($r('app.media.ic_more'))
+          .width(22)
+          .height(22)
+          .fillColor('#F2FFFFFF')
+      }
+      .width(44)
+      .height(44)
+      .borderRadius(22)
+      .stateStyles({
+        pressed: { .scale({ x: 0.86, y: 0.86 }) },
+        normal: { .scale({ x: 1, y: 1 }) }
+      })
+      .animation({ duration: 120, curve: Curve.EaseOut })
+      .onClick(() => {
+        overlayStore.openSheet(SheetKind.MORE, '更多操作');
+      })
+
       Blank()
-      this.prevButton()
-      this.nextButton()
-      this.playButton(54, 22)
+
+      this.pillPlayButton()
     }
     .width('100%')
     .alignItems(VerticalAlign.Center)
@@ -700,15 +883,40 @@ export struct FullscreenPlayer {
   @Builder
   bottomBlock() {
     Column({ space: 10 }) {
-      this.lyricsPreview()
-      this.titleBlock()
-      this.badges()
+      // 参考稿：歌词预览/标题/徽章区域左右滑动切歌（播客为 ±15s），
+      // 进度条与按钮不在此区域内，避免手势冲突。
+      Column({ space: 10 }) {
+        this.lyricsPreview()
+        this.titleBlock()
+        this.badges()
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .gesture(
+        SwipeGesture({ direction: SwipeDirection.Horizontal, fingers: 1 })
+          .onAction((event: GestureEvent) => {
+            if (event.offsetX < 0) {
+              if (playerStore.isPodcast) {
+                playerStore.seekBy(15000);
+              } else {
+                playerStore.next(false);
+              }
+            } else if (playerStore.isPodcast) {
+              playerStore.seekBy(-15000);
+            } else {
+              playerStore.previous();
+            }
+          })
+      )
+
       this.actionRow()
       this.progressBlock(false)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
-    .padding({ left: 22, right: 22, bottom: 30 })
+    // 底部保留悬浮页签栏（Index 中渲染的 dock 副本），内容避让其高度。
+    .padding({ left: 22, right: 22, bottom: DockMetrics.BOTTOM_MARGIN + DockMetrics.TAB_BAR_HEIGHT +
+      DockMetrics.CONTENT_BREATHING + 8 })
   }
 
   @Builder
@@ -756,7 +964,8 @@ export struct FullscreenPlayer {
           .alignItems(VerticalAlign.Center)
         }
         .width('100%')
-        .padding({ left: 24, right: 24, top: 4, bottom: 30 })
+        .padding({ left: 24, right: 24, top: 4, bottom: DockMetrics.BOTTOM_MARGIN +
+          DockMetrics.TAB_BAR_HEIGHT + DockMetrics.CONTENT_BREATHING + 8 })
       }
       .width('100%')
       .height('100%')

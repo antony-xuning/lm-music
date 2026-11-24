@@ -6,27 +6,18 @@ import { AppSelect } from '../components/AppSelect';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ServerStatusCard } from '../components/ServerStatusCard';
 import { SettingGroup, SettingRow } from '../components/SettingRow';
-import { ServerEndpoints } from '../common/ServerEndpoints';
 import { OnlineSource, ServerConfig, SourceHelper } from '../model/SettingsModels';
 import { SelectOptionItem } from '../model/UiModels';
 import { Formatters } from '../service/Formatters';
-import { LoginOutcome } from '../service/ServerManager';
 import { libraryStore } from '../viewmodel/LibraryStore';
+import { overlayStore } from '../viewmodel/OverlayStore';
 import { serverStore } from '../viewmodel/ServerStore';
 import { settingsStore } from '../viewmodel/SettingsStore';
 import { syncStore } from '../viewmodel/SyncStore';
 import { themeStore } from '../viewmodel/ThemeStore';
-import { AppConstants } from '../common/Constants';
 
 @ComponentV2
 export struct SettingsAccountSection {
-  @Local editing: boolean = false;
-  @Local editId: string = '';
-  @Local formName: string = '';
-  @Local formUrl: string = AppConstants.SERVER_URL_PLACEHOLDER;
-  @Local formUser: string = '';
-  @Local formPassword: string = '';
-  @Local testing: boolean = false;
   @Local message: string = '';
   @Local messageOk: boolean = false;
 
@@ -50,84 +41,11 @@ export struct SettingsAccountSection {
   }
 
   private startCreate(): void {
-    this.editing = true;
-    this.editId = '';
-    this.formName = '';
-    this.formUrl = AppConstants.SERVER_URL_PLACEHOLDER;
-    this.formUser = '';
-    this.formPassword = '';
-    this.message = '';
+    overlayStore.openServerEdit('');
   }
 
   private startEdit(server: ServerConfig): void {
-    this.editing = true;
-    this.editId = server.id;
-    this.formName = server.name;
-    this.formUrl = server.url;
-    this.formUser = server.username;
-    this.formPassword = '';
-    this.message = '';
-  }
-
-  private validate(): string {
-    if (this.formName.trim().length === 0) {
-      return '请填写服务器名称';
-    }
-    const urlError: string = ServerEndpoints.validateBase(this.formUrl);
-    if (urlError.length > 0) {
-      return urlError;
-    }
-    if (this.formUser.trim().length === 0) {
-      return '请填写用户名';
-    }
-    if (this.formPassword.length === 0) {
-      return '请填写密码';
-    }
-    return '';
-  }
-
-  private async test(): Promise<void> {
-    if (this.testing) {
-      return;
-    }
-    const error: string = this.validate();
-    if (error.length > 0) {
-      this.message = error;
-      this.messageOk = false;
-      return;
-    }
-    this.testing = true;
-    this.message = '正在连接…';
-    this.messageOk = false;
-    try {
-      const server: ServerConfig = new ServerConfig();
-      server.id = this.editId.length > 0 ? this.editId : settingsStore.newServerId();
-      server.name = this.formName.trim();
-      server.url = ServerEndpoints.normalizeBase(this.formUrl);
-      server.username = this.formUser.trim();
-      server.type = 'lemon';
-      server.syncMode = 'twoWay';
-      server.isActive = true;
-      const existing: ServerConfig | null = this.editId.length > 0 ? settingsStore.findServer(this.editId) : null;
-      if (existing !== null) {
-        server.token = existing.token;
-        server.tokenExpiresAt = existing.tokenExpiresAt;
-      }
-      const outcome: LoginOutcome = await serverStore.testAndLogin(server, this.formPassword);
-      this.formPassword = '';
-      this.messageOk = outcome.ok;
-      this.message = outcome.ok
-        ? `连接成功 · ${server.name} · ${outcome.session.displayName.length > 0 ? outcome.session.displayName : server.username} · ${outcome.latencyMs} ms`
-        : outcome.message;
-      if (outcome.ok) {
-        this.editing = false;
-        libraryStore.clearServerData();
-        libraryStore.loadSnapshot();
-        syncStore.syncNow(true);
-      }
-    } finally {
-      this.testing = false;
-    }
+    overlayStore.openServerEdit(server.id);
   }
 
   private async sync(): Promise<void> {
@@ -255,92 +173,6 @@ export struct SettingsAccountSection {
     .padding({ left: 14, right: 14, top: 10, bottom: 10 })
   }
 
-  @Builder
-  editor() {
-    Column({ space: 10 }) {
-      Text(this.editId.length > 0 ? '编辑服务器' : '新增服务器')
-        .fontSize(12.5)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(themeStore.palette.text)
-
-      TextInput({ text: this.formName, placeholder: '服务器名称（如 飞牛音乐）' })
-        .fontSize(12)
-        .fontColor(themeStore.palette.text)
-        .placeholderColor(themeStore.palette.sub)
-        .height(36)
-        .backgroundColor('#22FFFFFF')
-        .borderRadius(12)
-        .onChange((value: string) => {
-          this.formName = value;
-        })
-
-      TextInput({ text: this.formUrl, placeholder: AppConstants.SERVER_URL_PLACEHOLDER })
-        .fontSize(12)
-        .fontColor(themeStore.palette.text)
-        .placeholderColor(themeStore.palette.sub)
-        .height(36)
-        .backgroundColor('#22FFFFFF')
-        .borderRadius(12)
-        .onChange((value: string) => {
-          this.formUrl = value;
-        })
-
-      TextInput({ text: this.formUser, placeholder: '用户名' })
-        .fontSize(12)
-        .fontColor(themeStore.palette.text)
-        .placeholderColor(themeStore.palette.sub)
-        .height(36)
-        .backgroundColor('#22FFFFFF')
-        .borderRadius(12)
-        .onChange((value: string) => {
-          this.formUser = value;
-        })
-
-      TextInput({ text: this.formPassword, placeholder: '密码（仅本次会话内存保存）' })
-        .type(InputType.Password)
-        .fontSize(12)
-        .fontColor(themeStore.palette.text)
-        .placeholderColor(themeStore.palette.sub)
-        .height(36)
-        .backgroundColor('#22FFFFFF')
-        .borderRadius(12)
-        .onChange((value: string) => {
-          this.formPassword = value;
-        })
-
-      Row({ space: 8 }) {
-        Text('取消')
-          .fontSize(11.5)
-          .fontColor(themeStore.palette.sub)
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .padding({ top: 8, bottom: 8 })
-          .borderRadius(12)
-          .backgroundColor('#22FFFFFF')
-          .onClick(() => {
-            this.editing = false;
-          })
-        Text(this.testing ? '连接中…' : '保存并连接')
-          .fontSize(11.5)
-          .fontColor('#FFFFFF')
-          .layoutWeight(2)
-          .textAlign(TextAlign.Center)
-          .padding({ top: 8, bottom: 8 })
-          .borderRadius(12)
-          .backgroundColor(themeStore.palette.brand)
-          .onClick(() => {
-            this.test();
-          })
-      }
-      .width('100%')
-    }
-    .width('100%')
-    .padding(14)
-    .borderRadius(16)
-    .backgroundColor(themeStore.palette.card)
-    .alignItems(HorizontalAlign.Start)
-  }
-
   build() {
     Column({ space: 16 }) {
       SettingGroup({
@@ -405,7 +237,7 @@ export struct SettingsAccountSection {
             .fontColor(themeStore.palette.text)
             .padding({ left: 12, right: 12, top: 7, bottom: 7 })
             .borderRadius(13)
-            .backgroundColor('#22FFFFFF')
+            .backgroundColor(themeStore.palette.controlBg)
             .onClick(() => {
               this.clearCache();
             })
@@ -414,7 +246,7 @@ export struct SettingsAccountSection {
             .fontColor(themeStore.palette.text)
             .padding({ left: 12, right: 12, top: 7, bottom: 7 })
             .borderRadius(13)
-            .backgroundColor('#22FFFFFF')
+            .backgroundColor(themeStore.palette.controlBg)
             .onClick(() => {
               this.logout();
             })
@@ -462,25 +294,30 @@ export struct SettingsAccountSection {
           .padding({ left: 4 })
       }
 
-      if (this.editing) {
-        this.editor()
-      } else {
-        Row({ space: 6 }) {
-          Image($r('app.media.ic_plus'))
-            .width(13)
-            .height(13)
-            .fillColor('#FFFFFF')
-          Text('新增服务器')
-            .fontSize(11.5)
-            .fontColor('#FFFFFF')
-        }
-        .padding({ left: 14, right: 14, top: 8, bottom: 8 })
-        .borderRadius(14)
-        .backgroundColor(themeStore.palette.brand)
-        .onClick(() => {
-          this.startCreate();
-        })
+      Row({ space: 6 }) {
+        Image($r('app.media.ic_plus'))
+          .width(13)
+          .height(13)
+          .fillColor('#FFFFFF')
+        Text('添加服务器')
+          .fontSize(11.5)
+          .fontColor('#FFFFFF')
       }
+      .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+      .borderRadius(14)
+      .backgroundColor(themeStore.palette.brand)
+      .stateStyles({
+        pressed: {
+          .scale({ x: 0.94, y: 0.94 })
+        },
+        normal: {
+          .scale({ x: 1, y: 1 })
+        }
+      })
+      .animation({ duration: 130, curve: Curve.EaseOut })
+      .onClick(() => {
+        this.startCreate();
+      })
 
       if (this.message.length > 0 && !this.messageOk && this.message.indexOf('过期') >= 0) {
         Text('请重新点击服务器编辑，输入密码后再次连接。')

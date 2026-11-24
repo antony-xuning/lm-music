@@ -93,7 +93,7 @@ export struct PodcastShowPage {
           .fontColor(themeStore.palette.text)
           .padding({ left: 12, right: 12, top: 7, bottom: 7 })
           .borderRadius(14)
-          .backgroundColor('#22FFFFFF')
+          .backgroundColor(themeStore.palette.controlBg)
           .onClick(() => {
             this.refresh();
           })
@@ -119,25 +119,25 @@ export struct PodcastShowPage {
   }
 
   @Builder
-  episodeRow(episode: PodcastEpisode, index: number) {
+  episodeRow(ri: RepeatItem<PodcastEpisode>) {
     Column({ space: 4 }) {
-      Text(episode.title)
-        .fontSize(13)
+      Text(ri.item.title)
+        .fontSize(themeStore.font(13))
         .fontColor(themeStore.palette.text)
         .maxLines(2)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
       Row({ space: 8 }) {
-        Text(Formatters.date(episode.publishedAt))
-          .fontSize(9.5)
+        Text(Formatters.date(ri.item.publishedAt))
+          .fontSize(themeStore.font(9.5))
           .fontColor(themeStore.palette.sub)
-        Text(Formatters.duration(episode.durationMs))
-          .fontSize(9.5)
+        Text(Formatters.duration(ri.item.durationMs))
+          .fontSize(themeStore.font(9.5))
           .fontColor(themeStore.palette.sub)
         Blank()
-        if (podcastStore.progressOf(episode.id) > 0) {
-          Text(`上次听到 ${Formatters.duration(podcastStore.progressOf(episode.id))}`)
-            .fontSize(9.5)
+        if (podcastStore.progressOf(ri.item.id) > 0) {
+          Text(`上次听到 ${Formatters.duration(podcastStore.progressOf(ri.item.id))}`)
+            .fontSize(themeStore.font(9.5))
             .fontColor(themeStore.palette.brand)
         }
       }
@@ -146,7 +146,7 @@ export struct PodcastShowPage {
     .width('100%')
     .padding({ top: 9, bottom: 9 })
     .onClick(() => {
-      this.playEpisode(episode);
+      this.playEpisode(ri.item);
     })
   }
 
@@ -191,34 +191,39 @@ export struct PodcastShowPage {
           })
             .layoutWeight(1)
         } else {
-          List() {
-            ForEach(podcastStore.currentEpisodes, (episode: PodcastEpisode, index: number) => {
-              ListItem() {
-                this.episodeRow(episode, index)
-              }
-            }, (episode: PodcastEpisode) => episode.id)
-            ListItem() {
-              Column({ space: 4 }) {
-                if (podcastStore.hasMoreEpisodes) {
-                  Text(podcastStore.episodesLoading ? '加载中…' : '加载更多单集')
-                    .fontSize(11.5)
-                    .fontColor(themeStore.palette.brand)
-                    .width('100%')
-                    .textAlign(TextAlign.Center)
-                    .padding({ top: 12, bottom: 16 })
-                    .onClick(() => {
-                      podcastStore.loadEpisodes(this.feedId, false);
-                    })
-                }
-              }
-              .width('100%')
+          Column() {
+            List() {
+              // Repeat 虚拟滚动：单集按分页加载可无限增长，仅渲染可视区+预加载区。
+              Repeat<PodcastEpisode>(podcastStore.currentEpisodes)
+                .key((episode: PodcastEpisode) => episode.id)
+                .each((ri: RepeatItem<PodcastEpisode>) => {
+                  ListItem() {
+                    this.episodeRow(ri)
+                  }
+                })
+                .virtualScroll()
+            }
+            .width('100%')
+            .layoutWeight(1)
+            .divider({ strokeWidth: 0.5, color: themeStore.palette.softDivider })
+            .scrollBar(BarState.Off)
+            .cachedCount(6)
+
+            // 加载更多固定在列表下方：虚拟滚动容器内不混排其他子组件。
+            if (podcastStore.hasMoreEpisodes) {
+              Text(podcastStore.episodesLoading ? '加载中…' : '加载更多单集')
+                .fontSize(themeStore.font(11.5))
+                .fontColor(themeStore.palette.brand)
+                .width('100%')
+                .textAlign(TextAlign.Center)
+                .padding({ top: 12, bottom: 16 })
+                .onClick(() => {
+                  podcastStore.loadEpisodes(this.feedId, false);
+                })
             }
           }
           .width('100%')
           .layoutWeight(1)
-          .divider({ strokeWidth: 0.5, color: '#14FFFFFF' })
-          .scrollBar(BarState.Off)
-          .cachedCount(6)
         }
       }
       .width('100%')

@@ -66,6 +66,39 @@ export class AvSessionService {
   private creating: boolean = false;
   private activated: boolean = false;
 
+  // 播控命令回调必须保存引用，off() 时才能成对解绑，避免会话销毁后系统仍持有闭包。
+  private readonly playCommand: () => void = () => {
+    this.handlers.onPlay();
+  };
+  private readonly pauseCommand: () => void = () => {
+    this.handlers.onPause();
+  };
+  private readonly stopCommand: () => void = () => {
+    this.handlers.onStop();
+  };
+  private readonly nextCommand: () => void = () => {
+    this.handlers.onNext();
+  };
+  private readonly previousCommand: () => void = () => {
+    this.handlers.onPrevious();
+  };
+  private readonly seekCommand: (time: number) => void = (time: number): void => {
+    this.handlers.onSeek(time);
+  };
+  private readonly fastForwardCommand: () => void = () => {
+    this.handlers.onFastForward();
+  };
+  private readonly rewindCommand: () => void = () => {
+    this.handlers.onRewind();
+  };
+  private readonly favoriteCommand: (assetId: string) => void = (assetId: string): void => {
+    this.handlers.onToggleFavorite(assetId);
+  };
+  private readonly loopModeCommand: (mode: avSession.LoopMode) => void =
+    (mode: avSession.LoopMode): void => {
+      this.handlers.onLoopMode(mode);
+    };
+
   private lastAssetId: string = '';
   private lastCoverUri: string = '';
   private lastLyric: string = '';
@@ -154,39 +187,37 @@ export class AvSessionService {
 
   private registerCommands(session: avSession.AVSession): void {
     try {
-      session.on('play', () => {
-        this.handlers.onPlay();
-      });
-      session.on('pause', () => {
-        this.handlers.onPause();
-      });
-      session.on('stop', () => {
-        this.handlers.onStop();
-      });
-      session.on('playNext', () => {
-        this.handlers.onNext();
-      });
-      session.on('playPrevious', () => {
-        this.handlers.onPrevious();
-      });
-      session.on('seek', (time: number) => {
-        this.handlers.onSeek(time);
-      });
-      session.on('fastForward', () => {
-        this.handlers.onFastForward();
-      });
-      session.on('rewind', () => {
-        this.handlers.onRewind();
-      });
-      session.on('toggleFavorite', (assetId: string) => {
-        this.handlers.onToggleFavorite(assetId);
-      });
-      session.on('setLoopMode', (mode: avSession.LoopMode) => {
-        this.handlers.onLoopMode(mode);
-      });
+      session.on('play', this.playCommand);
+      session.on('pause', this.pauseCommand);
+      session.on('stop', this.stopCommand);
+      session.on('playNext', this.nextCommand);
+      session.on('playPrevious', this.previousCommand);
+      session.on('seek', this.seekCommand);
+      session.on('fastForward', this.fastForwardCommand);
+      session.on('rewind', this.rewindCommand);
+      session.on('toggleFavorite', this.favoriteCommand);
+      session.on('setLoopMode', this.loopModeCommand);
     } catch (error) {
       const err = error as BusinessError;
       Logger.warn(SCOPE, `register commands failed: ${err.code}`);
+    }
+  }
+
+  private unregisterCommands(session: avSession.AVSession): void {
+    try {
+      session.off('play', this.playCommand);
+      session.off('pause', this.pauseCommand);
+      session.off('stop', this.stopCommand);
+      session.off('playNext', this.nextCommand);
+      session.off('playPrevious', this.previousCommand);
+      session.off('seek', this.seekCommand);
+      session.off('fastForward', this.fastForwardCommand);
+      session.off('rewind', this.rewindCommand);
+      session.off('toggleFavorite', this.favoriteCommand);
+      session.off('setLoopMode', this.loopModeCommand);
+    } catch (error) {
+      const err = error as BusinessError;
+      Logger.warn(SCOPE, `unregister commands failed: ${err.code}`);
     }
   }
 
@@ -222,7 +253,6 @@ export class AvSessionService {
   /** 曲目被清空 / 停止播放时销毁会话并清理封面资源。 */
   async destroy(): Promise<void> {
     const session: avSession.AVSession | null = this.session;
-    this.session = null;
     this.activated = false;
     this.lastAssetId = '';
     this.lastCoverUri = '';
@@ -231,10 +261,13 @@ export class AvSessionService {
     this.lastStateKey = '';
     this.lyricTimes = [];
     this.lyricLines = [];
-    this.releaseCover();
     if (session === null) {
+      this.releaseCover();
       return;
     }
+    // 先解绑命令再销毁会话；destroy 失败时保留引用，便于下次重试而不是丢失会话。
+    this.unregisterCommands(session);
+    let destroyed: boolean = false;
     try {
       await session.deactivate();
     } catch (error) {
@@ -243,10 +276,15 @@ export class AvSessionService {
     }
     try {
       await session.destroy();
+      destroyed = true;
     } catch (error) {
       const err = error as BusinessError;
       Logger.warn(SCOPE, `destroy failed: ${err.code}`);
     }
+    if (destroyed) {
+      this.session = null;
+    }
+    this.releaseCover();
   }
 
   private async applyMetadata(session: avSession.AVSession, track: AvTrackInfo): Promise<void> {
@@ -259,6 +297,8 @@ export class AvSessionService {
     if (track.album.length > 0) {
       meta.album = track.album;
     }
+    // 先保留旧封面，待新元数据被系统接受后再释放，避免锁屏封面短暂空白。
+    const previousPixel: image.PixelMap | null = this.coverPixelMap;
     const pixel: image.PixelMap | null = await this.resolveCover(track.coverUri);
     if (pixel !== null) {
       meta.mediaImage = pixel;
@@ -277,6 +317,13 @@ export class AvSessionService {
       this.lastCoverUri = track.coverUri;
       this.lastLyric = track.lyric;
       this.lastLine = line;
+      if (previousPixel !== null && previousPixel !== pixel) {
+        try {
+          previousPixel.release();
+        } catch (error) {
+          Logger.warn(SCOPE, 'release previous cover failed');
+        }
+      }
     } catch (error) {
       const err = error as BusinessError;
       Logger.warn(SCOPE, `setAVMetadata failed: ${err.code}`);
@@ -375,7 +422,7 @@ export class AvSessionService {
         desiredSize: { width: 512, height: 512 }
       };
       const pixel: image.PixelMap = await source.createPixelMap(options);
-      this.releaseCover();
+      // 不在这里释放旧 PixelMap：由 applyMetadata 在系统接受新封面后再释放。
       this.coverPixelMap = pixel;
       return pixel;
     } catch (error) {

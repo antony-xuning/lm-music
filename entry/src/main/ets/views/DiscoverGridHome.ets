@@ -6,18 +6,23 @@
 import { AppConstants, DockMetrics } from '../common/Constants';
 import { ServerEndpoints } from '../common/ServerEndpoints';
 import { Artwork } from '../components/Artwork';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
-import { playVisualSong } from '../service/PlaybackLauncher';
+import { playVisualSong, queueSong } from '../service/PlaybackLauncher';
 import { playlistCardCount } from '../service/DiscoverService';
+import { DownloadOpResult } from '../service/ServerDownloadService';
 import { Formatters } from '../service/Formatters';
 import { Album, Playlist, Song } from '../model/MediaModels';
 import { DiscoverCollectionKind, DiscoverCollectionParam, DiscoverToplistItem } from '../model/UiModels';
 import { DiscoverStore, discoverStore } from '../viewmodel/DiscoverStore';
 import { podcastStore } from '../viewmodel/PodcastStore';
 import { layoutStore } from '../viewmodel/LayoutStore';
+import { libraryStore } from '../viewmodel/LibraryStore';
+import { downloadStore } from '../viewmodel/DownloadStore';
 import { overlayStore } from '../viewmodel/OverlayStore';
 import { playerStore } from '../viewmodel/PlayerStore';
 import { serverStore } from '../viewmodel/ServerStore';
+import { settingsStore } from '../viewmodel/SettingsStore';
 import { scrollChrome } from '../viewmodel/ScrollChromeStore';
 import { themeStore } from '../viewmodel/ThemeStore';
 
@@ -29,6 +34,7 @@ export struct DiscoverGridHome {
   @Local batch: number = 0;
   @Local selectionMode: boolean = false;
   @Local selectedIds: string[] = [];
+  private selectedSet: Set<string> = new Set<string>();
   private scroller: Scroller = new Scroller();
   private homeToken: number = 0;
   private mounted: boolean = false;
@@ -121,6 +127,36 @@ export struct DiscoverGridHome {
     playVisualSong(list, index < 0 ? 0 : index);
   }
 
+  private showSongMenu(song: Song): void {
+    const actions: string[] = ['立即播放', '加入试听列表', '收藏', '加入歌单', '下载'];
+    ConfirmDialog.actionSheet(this.getUIContext(), song.title, actions).then((index: number) => {
+      if (index === 0) {
+        this.playSong(song);
+      } else if (index === 1) {
+        queueSong(song);
+        ConfirmDialog.toast(this.getUIContext(), '已加入试听列表');
+      } else if (index === 2) {
+        this.toggleFavorite(song);
+      } else if (index === 3) {
+        overlayStore.openAddToPlaylist([song.id]);
+      } else if (index === 4) {
+        downloadStore.addFromSong(song, settingsStore.prefs.defaultQuality)
+          .then((result: DownloadOpResult) => {
+            ConfirmDialog.toast(this.getUIContext(), result.message);
+          });
+      }
+    });
+  }
+
+  private async toggleFavorite(song: Song): Promise<void> {
+    if (!libraryStore.findSong(song.id)) {
+      ConfirmDialog.toast(this.getUIContext(), '在线曲目暂未同步到曲库，收藏前请先同步');
+      return;
+    }
+    const outcome = await libraryStore.toggleFavorite(song.id);
+    ConfirmDialog.toast(this.getUIContext(), outcome.message);
+  }
+
   private nextBatch(): void {
     this.batch = this.batch + 1;
   }
@@ -135,22 +171,32 @@ export struct DiscoverGridHome {
     return `来自 ${discoverStore.sourceLabel} 亿万乐友精选`;
   }
 
+  private applySelectedIds(ids: string[]): void {
+    this.selectedSet = new Set<string>(ids);
+    this.selectedIds = ids.slice();
+  }
+
   private toggleSelection(song: Song): void {
-    const index: number = this.selectedIds.indexOf(song.id);
-    if (index >= 0) {
-      this.selectedIds.splice(index, 1);
+    const next: Set<string> = new Set<string>(this.selectedSet);
+    if (next.has(song.id)) {
+      next.delete(song.id);
     } else {
-      this.selectedIds.push(song.id);
+      next.add(song.id);
     }
+    const ids: string[] = [];
+    next.forEach((id: string): void => {
+      ids.push(id);
+    });
+    this.applySelectedIds(ids);
   }
 
   private isSelected(song: Song): boolean {
-    return this.selectedIds.indexOf(song.id) >= 0;
+    return this.selectedSet.has(song.id);
   }
 
   private exitSelection(): void {
     this.selectionMode = false;
-    this.selectedIds = [];
+    this.applySelectedIds([]);
   }
 
   /** 播放选中的新歌（按原列表顺序）。 */
@@ -158,7 +204,7 @@ export struct DiscoverGridHome {
     const all: Song[] = discoverStore.newSongs;
     const chosen: Song[] = [];
     for (let i = 0; i < all.length; i++) {
-      if (this.selectedIds.indexOf(all[i].id) >= 0) {
+      if (this.selectedSet.has(all[i].id)) {
         chosen.push(all[i]);
       }
     }
@@ -228,6 +274,11 @@ export struct DiscoverGridHome {
     }
     .width('100%')
     .height(46)
+    .stateStyles({
+      pressed: { .scale({ x: 0.97, y: 0.97 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.playSong(song);
     })
@@ -268,6 +319,11 @@ export struct DiscoverGridHome {
     }
     .width('100%')
     .height(46)
+    .stateStyles({
+      pressed: { .scale({ x: 0.97, y: 0.97 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openAlbum(album);
     })
@@ -305,6 +361,11 @@ export struct DiscoverGridHome {
     }
     .width('100%')
     .height(42)
+    .stateStyles({
+      pressed: { .scale({ x: 0.97, y: 0.97 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openToplist(item);
     })
@@ -518,6 +579,11 @@ export struct DiscoverGridHome {
     .borderRadius(20)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       overlayStore.openPodcast();
     })
@@ -582,6 +648,11 @@ export struct DiscoverGridHome {
     .borderRadius(20)
     .clip(true)
     .border({ width: 1, color: '#38FFFFFF' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.98, y: 0.98 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.nextBatch();
     })
@@ -627,6 +698,11 @@ export struct DiscoverGridHome {
     }
     .width(124)
     .alignItems(HorizontalAlign.Start)
+    .stateStyles({
+      pressed: { .scale({ x: 0.95, y: 0.95 }) },
+      normal: { .scale({ x: 1, y: 1 }) }
+    })
+    .animation({ duration: 130, curve: Curve.EaseOut })
     .onClick(() => {
       this.openPlaylist(playlist);
     })
@@ -699,7 +775,7 @@ export struct DiscoverGridHome {
             .fontSize(11)
             .fontColor(themeStore.palette.text)
             .onClick(() => {
-              this.selectedIds = discoverStore.newSongs.map((s: Song) => s.id);
+              this.applySelectedIds(discoverStore.newSongs.map((s: Song) => s.id));
             })
           Text('加入歌单')
             .fontSize(11)
@@ -741,6 +817,11 @@ export struct DiscoverGridHome {
           .padding({ left: 16, right: 16, top: 9, bottom: 9 })
           .borderRadius(18)
           .backgroundColor(themeStore.palette.brand)
+          .stateStyles({
+            pressed: { .scale({ x: 0.92, y: 0.92 }) },
+            normal: { .scale({ x: 1, y: 1 }) }
+          })
+          .animation({ duration: 120, curve: Curve.EaseOut })
           .onClick(() => {
             if (discoverStore.newSongs.length > 0) {
               playVisualSong(discoverStore.newSongs, 0);
@@ -759,9 +840,14 @@ export struct DiscoverGridHome {
           .padding({ left: 14, right: 14, top: 9, bottom: 9 })
           .borderRadius(18)
           .border({ width: 1, color: themeStore.palette.divider })
+          .stateStyles({
+            pressed: { .scale({ x: 0.92, y: 0.92 }) },
+            normal: { .scale({ x: 1, y: 1 }) }
+          })
+          .animation({ duration: 120, curve: Curve.EaseOut })
           .onClick(() => {
             this.selectionMode = true;
-            this.selectedIds = [];
+            this.applySelectedIds([]);
           })
         }
         .width('100%')
@@ -779,7 +865,7 @@ export struct DiscoverGridHome {
                     .width(20)
                     .height(20)
                     .borderRadius(10)
-                    .border({ width: 1.5, color: this.isSelected(song) ? themeStore.palette.brand : '#66FFFFFF' })
+                    .border({ width: 1.5, color: this.isSelected(song) ? themeStore.palette.brand : themeStore.palette.softBorder })
                     .backgroundColor(this.isSelected(song) ? themeStore.palette.brand : Color.Transparent)
                   if (this.isSelected(song)) {
                     Image($r('app.media.ic_check'))
@@ -831,6 +917,9 @@ export struct DiscoverGridHome {
                   .width(16)
                   .height(16)
                   .fillColor(themeStore.palette.sub)
+                  .onClick(() => {
+                    this.showSongMenu(song);
+                  })
               }
             }
             .width('100%')
@@ -954,7 +1043,7 @@ export struct DiscoverGridHome {
       .width('100%')
       .height('100%')
       .onDidScroll((delta: number, state: ScrollState) => {
-        scrollChrome.report(this.scroller.currentOffset().yOffset, delta);
+        scrollChrome.reportFromScroller(this.scroller, delta);
       })
     }
     .onRefreshing(() => {

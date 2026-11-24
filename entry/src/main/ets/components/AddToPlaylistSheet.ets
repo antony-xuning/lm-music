@@ -143,7 +143,7 @@ export struct AddToPlaylistSheet {
               .placeholderColor(themeStore.palette.sub)
               .layoutWeight(1)
               .height(38)
-              .backgroundColor('#22FFFFFF')
+              .backgroundColor(themeStore.palette.controlBg)
               .borderRadius(12)
               .onChange((value: string) => {
                 this.newName = value;
@@ -185,7 +185,7 @@ export struct AddToPlaylistSheet {
           }
           .width('100%')
           .constraintSize({ maxHeight: 320 })
-          .divider({ strokeWidth: 0.5, color: '#1AFFFFFF' })
+          .divider({ strokeWidth: 0.5, color: themeStore.palette.softDivider })
           .scrollBar(BarState.Off)
         }
       }

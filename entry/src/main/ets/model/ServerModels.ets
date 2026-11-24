@@ -167,92 +167,99 @@ export class SyncState {
   lastSuccessAt: number = 0;
 }
 
+@ObservedV2
 export class ServerDownloadTask {
-  id: string = '';
-  name: string = '';
-  singer: string = '';
-  album: string = '';
-  source: string = '';
-  platformId: string = '';
-  quality: string = '';
-  status: string = 'waiting';
-  progress: number = 0;
-  bytesDone: number = 0;
-  bytesTotal: number = 0;
-  speed: number = 0;
-  filePath: string = '';
-  error: string = '';
-  createdAt: number = 0;
-  updatedAt: number = 0;
+  @Trace id: string = '';
+  @Trace name: string = '';
+  @Trace singer: string = '';
+  @Trace album: string = '';
+  @Trace source: string = '';
+  @Trace platformId: string = '';
+  @Trace quality: string = '';
+  @Trace status: string = 'waiting';
+  @Trace progress: number = 0;
+  @Trace bytesDone: number = 0;
+  @Trace bytesTotal: number = 0;
+  @Trace speed: number = 0;
+  @Trace filePath: string = '';
+  @Trace error: string = '';
+  @Trace createdAt: number = 0;
+  @Trace updatedAt: number = 0;
 }
 
+@ObservedV2
 export class PodcastFeed {
-  id: string = '';
-  title: string = '';
-  author: string = '';
-  coverUrl: string = '';
-  description: string = '';
-  episodeCount: number = 0;
-  subscribedAt: number = 0;
+  @Trace id: string = '';
+  @Trace title: string = '';
+  @Trace author: string = '';
+  @Trace coverUrl: string = '';
+  @Trace description: string = '';
+  @Trace episodeCount: number = 0;
+  @Trace subscribedAt: number = 0;
 }
 
+@ObservedV2
 export class PodcastEpisode {
-  id: string = '';
-  feedId: string = '';
-  title: string = '';
-  audioUrl: string = '';
-  durationMs: number = 0;
-  publishedAt: number = 0;
-  description: string = '';
+  @Trace id: string = '';
+  @Trace feedId: string = '';
+  @Trace title: string = '';
+  @Trace audioUrl: string = '';
+  @Trace durationMs: number = 0;
+  @Trace publishedAt: number = 0;
+  @Trace description: string = '';
 }
 
+@ObservedV2
 export class SourcePlatform {
-  id: string = '';
-  label: string = '';
-  enabled: boolean = true;
-  level: string = '';
-  okRatio: number = 0;
-  avgMs: number = 0;
-  lastError: string = '';
-  qualitys: string[] = [];
+  @Trace id: string = '';
+  @Trace label: string = '';
+  @Trace enabled: boolean = true;
+  @Trace level: string = '';
+  @Trace okRatio: number = 0;
+  @Trace avgMs: number = 0;
+  @Trace lastError: string = '';
+  @Trace qualitys: string[] = [];
 }
 
+@ObservedV2
 export class SourceScript {
-  id: string = '';
-  name: string = '';
-  author: string = '';
-  version: string = '';
-  homepage: string = '';
-  active: boolean = true;
-  health: string = '';
-  platforms: SourcePlatform[] = [];
-  lastProbe: string = '';
+  @Trace id: string = '';
+  @Trace name: string = '';
+  @Trace author: string = '';
+  @Trace version: string = '';
+  @Trace homepage: string = '';
+  @Trace active: boolean = true;
+  @Trace health: string = '';
+  @Trace platforms: SourcePlatform[] = [];
+  @Trace lastProbe: string = '';
 }
 
+@ObservedV2
 export class TagInfo {
-  filePath: string = '';
-  title: string = '';
-  artist: string = '';
-  album: string = '';
-  albumArtist: string = '';
-  year: number = 0;
-  track: number = 0;
-  genre: string = '';
-  hasPicture: boolean = false;
-  hasLyric: boolean = false;
-  lyric: string = '';
-  format: string = '';
-  durationMs: number = 0;
+  @Trace filePath: string = '';
+  @Trace title: string = '';
+  @Trace artist: string = '';
+  @Trace album: string = '';
+  @Trace albumArtist: string = '';
+  @Trace year: number = 0;
+  @Trace track: number = 0;
+  @Trace genre: string = '';
+  @Trace hasPicture: boolean = false;
+  @Trace hasLyric: boolean = false;
+  @Trace lyric: string = '';
+  @Trace format: string = '';
+  @Trace durationMs: number = 0;
 }
 
+@ObservedV2
 export class TagCandidate {
-  source: string = '';
-  title: string = '';
-  artist: string = '';
-  album: string = '';
-  coverUrl: string = '';
-  matchScore: number = 0;
-  rawJson: string = '';
+  @Trace source: string = '';
+  @Trace title: string = '';
+  @Trace artist: string = '';
+  @Trace album: string = '';
+  @Trace coverUrl: string = '';
+  @Trace matchScore: number = 0;
+  @Trace rawJson: string = '';
 }
 
 export class CoverRef {

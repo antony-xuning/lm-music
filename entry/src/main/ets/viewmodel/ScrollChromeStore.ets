@@ -22,6 +22,7 @@ export class ScrollChromeStore {
 
   private lastOffset: number = 0;
   private lastReportAt: number = 0;
+  private lastReadAt: number = 0;
   private pendingMovement: number = 0;
   private upAccum: number = 0;
   private downAccum: number = 0;
@@ -35,6 +36,19 @@ export class ScrollChromeStore {
    * 主列表滚动回调：offset 为当前偏移（vp），delta 为本帧位移。
    * 用偏移差判定方向（不依赖不同组件对 delta 符号的实现差异）。
    */
+  /**
+   * 主页面滚动回调入口：将 currentOffset() 布局读取收敛到与内部节流一致的频率
+   * （最多 20 次/秒），避免滚动期间每帧查询布局。跳过的帧由偏移差自然补齐，不丢位移。
+   */
+  reportFromScroller(scroller: Scroller, delta: number): void {
+    const now: number = Date.now();
+    if (now - this.lastReadAt < 50) {
+      return;
+    }
+    this.lastReadAt = now;
+    this.report(scroller.currentOffset().yOffset, delta);
+  }
+
   report(offset: number, delta: number): void {
     const safeOffset: number = Math.max(0, offset);
     const now: number = Date.now();

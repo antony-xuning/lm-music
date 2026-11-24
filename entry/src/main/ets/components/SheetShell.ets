@@ -2,6 +2,8 @@
  * 半模态面板统一壳：拖拽把手 + 标题 + 关闭按钮 + 内容插槽。
  * 面板本身的沉浸式材质由 bindSheet（系统半模态）在应用级开关下自动提供。
  */
+import { themeStore } from '../viewmodel/ThemeStore';
+
 @ComponentV2
 export struct SheetShell {
   @Param sheetTitle: string = '';
@@ -24,7 +26,7 @@ export struct SheetShell {
         .width(36)
         .height(4)
         .borderRadius(2)
-        .backgroundColor('#3A3A42')
+        .backgroundColor(themeStore.palette.handle)
         .margin({ top: 8, bottom: 6 })
 
       Row() {
@@ -51,7 +53,7 @@ export struct SheetShell {
         .width(30)
         .height(30)
         .borderRadius(15)
-        .backgroundColor('#22FFFFFF')
+        .backgroundColor(themeStore.palette.controlBg)
         .onClick(() => {
           this.onClose();
         })

@@ -1,12 +1,14 @@
 /**
  * 唯一 @Entry 页面：Navigation(STACK) + Tabs 四页签 + 合并 Glass Dock + 覆盖层插槽。
  */
-import { display, uiMaterial } from '@kit.ArkUI';
+import { display } from '@kit.ArkUI';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { BottomDock } from '../components/BottomDock';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { CollapsedBar } from '../components/CollapsedBar';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
+import { ServerEditSheet } from '../components/ServerEditSheet';
 import { HomeView } from '../views/HomeView';
 import { LibraryView } from '../views/LibraryView';
 import { DownloadView } from '../views/DownloadView';
@@ -56,6 +58,9 @@ struct Index {
   @Local stageWidth: number = 360;
   @Local stageHeight: number = 780;
   private closeTimer: number = -1;
+  /** 保存回调引用，页面卸载时才能 display.off 成对解绑。 */
+  private displayChangeCallback: (id: number) => void = () => {
+  };
 
   aboutToAppear(): void {
     overlayStore.setSheetListener((visible: boolean) => {
@@ -75,10 +80,11 @@ struct Index {
     });
     layoutStore.attach(this.getUIContext());
     this.updateDockWidth();
+    this.displayChangeCallback = (id: number): void => {
+      this.updateDockWidth();
+    };
     try {
-      display.on('change', (id: number) => {
-        this.updateDockWidth();
-      });
+      display.on('change', this.displayChangeCallback);
     } catch (error) {
       Logger.warn(SCOPE, 'display listener unavailable');
     }
@@ -89,7 +95,9 @@ struct Index {
         this.pathStack.pushPathByName(name, param);
       }
     });
-    this.bootstrap();
+    this.bootstrap().catch((error: BusinessError) => {
+      Logger.warn(SCOPE, `bootstrap failed: ${error.code}`);
+    });
   }
 
   aboutToDisappear(): void {
@@ -97,6 +105,18 @@ struct Index {
       clearTimeout(this.closeTimer);
       this.closeTimer = -1;
     }
+    try {
+      display.off('change', this.displayChangeCallback);
+    } catch (error) {
+      Logger.warn(SCOPE, 'display listener off failed');
+    }
+    layoutStore.detach();
+    overlayStore.setSheetListener(() => {
+    });
+    overlayStore.setPlayerPresenter(null);
+    playerTransition.setHiddenListener(() => {
+    });
+    routeBridge.register(null);
   }
 
   private updateDockWidth(): void {
@@ -130,9 +150,14 @@ struct Index {
     if (width <= 0 || height <= 0) {
       return;
     }
+    const target: number = width - 16;
+    // onAreaChange 在滚动/动画中也会回调；1vp 内抖动直接忽略，避免重建整棵 Navigation 树。
+    if (Math.abs(width - this.stageWidth) < 1 && Math.abs(height - this.stageHeight) < 1
+      && (target <= 120 || Math.abs(target - this.dockBarWidth) < 1)) {
+      return;
+    }
     this.stageWidth = width;
     this.stageHeight = height;
-    const target: number = width - 16;
     if (target > 120) {
       this.dockBarWidth = target;
     }
@@ -210,26 +235,41 @@ struct Index {
     } catch (error) {
       Logger.warn(SCOPE, 'migration failed');
     }
-    libraryStore.init();
-    downloadStore.init();
-    podcastStore.init();
-    searchStore.init();
-    playerStore.init();
-    playerStore.setFavoriteProvider((songKey: string): boolean => libraryStore.isFavorite(songKey));
-    playerStore.setFavoriteToggler((songKey: string): void => {
-      libraryStore.toggleFavorite(songKey);
-    });
+    // 依赖顺序：设置 → 服务器会话/上下文 → 依赖 serverContext 的曲库快照 → 其余 Store。
+    // 原顺序在 serverStore.init() 之前调用 loadSnapshot()，serverId 为空导致首帧曲库为空。
+    try {
+      await settingsStore.init();
+    } catch (error) {
+      Logger.warn(SCOPE, 'settings init failed');
+    }
     LyricPrefs.restore();
-    await settingsStore.init();
     themeStore.setColorModeApplier((mode: ThemeMode) => {
       this.applyColorMode(mode);
     });
     themeStore.setMode(settingsStore.prefs.themeMode);
     themeStore.setScale(settingsStore.prefs.uiScale);
     themeStore.setBlur(settingsStore.prefs.blurAlpha);
-    await serverStore.init();
+
+    try {
+      await serverStore.init();
+    } catch (error) {
+      Logger.warn(SCOPE, 'server init failed');
+    }
+    libraryStore.init();
     libraryStore.loadSnapshot();
-    localScanStore.init();
+    downloadStore.init();
+    podcastStore.init();
+    searchStore.init().catch((error: BusinessError) => {
+      Logger.warn(SCOPE, `search init failed: ${error.code}`);
+    });
+    playerStore.init();
+    playerStore.setFavoriteProvider((songKey: string): boolean => libraryStore.isFavorite(songKey));
+    playerStore.setFavoriteToggler((songKey: string): void => {
+      libraryStore.toggleFavorite(songKey);
+    });
+    localScanStore.init().catch((error: BusinessError) => {
+      Logger.warn(SCOPE, `local scan init failed: ${error.code}`);
+    });
     discoverStore.init();
     if (serverStore.canRead) {
       sourceStore.load();
@@ -266,11 +306,6 @@ struct Index {
     }
   }
 
-  /** 折叠态隐藏悬浮页签栏（barHeight 0），展开态固定 64。 */
-  private tabBarHeight(): number {
-    return scrollChrome.collapsed ? 0 : DockMetrics.TAB_BAR_HEIGHT;
-  }
-
   @Builder
   tabItem(index: number, title: string, icon: Resource) {
     BottomDock({
@@ -281,6 +316,81 @@ struct Index {
       iconColor: themeStore.surfacePalette.sub,
       activeColor: themeStore.palette.brand
     })
+  }
+
+  /** 悬浮页签点击：切页签并复位滚动；播放器内的副本额外收起播放器。 */
+  private dockTap(index: number, closePlayer: boolean): void {
+    overlayStore.setTab(index);
+    scrollChrome.reset(index);
+    if (index === 0) {
+      discoverStore.reloadIfStale();
+    }
+    if (closePlayer) {
+      overlayStore.closePlayer();
+    }
+  }
+
+  @Builder
+  dockItem(index: number, title: string, icon: Resource, closePlayer: boolean) {
+    Column() {
+      this.tabItem(index, title, icon)
+    }
+    .layoutWeight(1)
+    .height('100%')
+    .stateStyles({
+      pressed: { .scale({ x: 0.92, y: 0.92 }).opacity(0.85) },
+      normal: { .scale({ x: 1, y: 1 }).opacity(1) }
+    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .onClick(() => {
+      this.dockTap(index, closePlayer);
+    })
+  }
+
+  /**
+   * 悬浮页签栏：与迷你播放器完全同配方的玻璃胶囊。
+   * 弃用 Tabs.barFloatingStyle 的 systemMaterial —— 真机上会被系统染成偏黄实色，
+   * 且与迷你播放器的通透观感不一致；改用确定性模糊 + 折射渐变保证深浅主题一致。
+   */
+  @Builder
+  glassDock(closePlayer: boolean) {
+    Stack({ alignContent: Alignment.TopStart }) {
+      // 层 1：垂直折射渐变。
+      Column()
+        .width('100%')
+        .height('100%')
+        .linearGradient({ angle: 180, colors: ImmersiveGlass.barTint() })
+
+      // 层 1.5：沉浸光感——封面主色环境光，光源居中向两端扩散，随换曲实时变色。
+      Column()
+        .width('100%')
+        .height('100%')
+        .radialGradient({
+          center: ['50%', '60%'],
+          radius: '75%',
+          colors: ImmersiveGlass.ambientStops()
+        })
+
+      // 层 2：页签内容。（原顶部扫光层移除：与描边错位后呈游离白线。）
+      Row() {
+        this.dockItem(0, '首页', $r('app.media.ic_home'), closePlayer)
+        this.dockItem(1, '资料库', $r('app.media.ic_library'), closePlayer)
+        this.dockItem(2, '下载', $r('app.media.ic_download'), closePlayer)
+        this.dockItem(3, '设置', $r('app.media.ic_settings'), closePlayer)
+      }
+      .width('100%')
+      .height('100%')
+    }
+    .width(this.dockBarWidth)
+    .height(DockMetrics.TAB_BAR_HEIGHT)
+    .borderRadius(DockMetrics.TAB_BAR_HEIGHT / 2)
+    .backgroundColor(ImmersiveGlass.barBase())
+    .backgroundEffect({ radius: 32, saturation: 1.35, brightness: 1.05 })
+    .border({ width: 1, color: ImmersiveGlass.barEdge() })
+    .shadow({ radius: 26, color: ImmersiveGlass.ambientGlow(), offsetX: 0, offsetY: 10 })
+    .clip(true)
+    .margin({ bottom: DockMetrics.BOTTOM_MARGIN })
+    .transition(TransitionEffect.OPACITY.animation({ duration: 160 }))
   }
 
   @Builder
@@ -302,6 +412,8 @@ struct Index {
           Logger.info(SCOPE, message);
         }
       })
+    } else if (overlayStore.sheetKind === SheetKind.SERVER_EDIT) {
+      ServerEditSheet()
     }
   }
 
@@ -351,18 +463,9 @@ struct Index {
         .barPosition(BarPosition.End)
         .barMode(BarMode.Fixed)
         .barOverlap(true)
-        .barHeight(this.tabBarHeight())
+        // 系统悬浮材质在真机上底色偏黄，改为下方自绘玻璃胶囊；Tabs 仅负责页面切换。
+        .barHeight(0)
         .animation({ duration: 220, curve: Curve.EaseOut })
-        .barFloatingStyle({
-          barWidth: {
-            smallBarWidth: this.dockBarWidth,
-            mediumBarWidth: this.dockBarWidth,
-            largeBarWidth: this.dockBarWidth
-          },
-          barSideMargin: 8,
-          barBottomMargin: DockMetrics.BOTTOM_MARGIN,
-          systemMaterial: ImmersiveGlass.dock()
-        })
         .scrollable(true)
         .animationDuration(220)
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
@@ -374,10 +477,17 @@ struct Index {
           }
         })
 
-        // 默认态：独立迷你播放器胶囊悬浮在页签栏上方 8vp（双层玻璃）。
+        // 默认态：自绘玻璃页签栏，与迷你播放器共用同一套通透配方（替代系统悬浮材质）。
+        if (!scrollChrome.collapsed &&
+          (!playerTransition.visible || playerTransition.progress <= 0.01)) {
+          this.glassDock(false)
+        }
+
+        // 默认态：独立迷你播放器胶囊常驻悬浮在页签栏上方 8vp（双层玻璃），
+        // 无曲目时显示占位内容（华为音乐式常驻播放条）。
         // 打开动画起步那一两帧保留胶囊（此时播放器还只是同位置的透明小卡），
         // 之后隐藏；关闭动画落到矩形后才重新出现，避免双影（FR-164）。
-        if (!scrollChrome.collapsed && playerStore.current !== null &&
+        if (!scrollChrome.collapsed &&
           (!playerTransition.visible || playerTransition.progress <= 0.01)) {
           Column() {
             MiniPlayer()
@@ -446,6 +556,13 @@ struct Index {
             stageWidthValue: this.stageWidth,
             stageHeightValue: this.stageHeight
           })
+        }
+
+        // 播放详情页底部保留悬浮页签栏（参考稿效果）：
+        // 仅在展开动画完成后出现，收缩动画一开始即隐藏，避免与迷你播放器双影。
+        if (playerTransition.visible && playerTransition.progress >= 0.999 &&
+          !playerTransition.animating) {
+          this.glassDock(true)
         }
       }
       .width('100%')

@@ -369,7 +369,7 @@ export struct SettingsAppearanceSection {
       .padding({ left: 12, right: 12, top: 7, bottom: 7 })
       .borderRadius(14)
       .backgroundColor(settingsStore.prefs.themeMode === mode
-        ? themeStore.palette.brand : '#22FFFFFF')
+        ? themeStore.palette.brand : themeStore.palette.controlBg)
       .onClick(() => {
         settingsStore.setThemeMode(mode);
         themeStore.setMode(mode);
@@ -384,7 +384,7 @@ export struct SettingsAppearanceSection {
       .padding({ left: 12, right: 12, top: 7, bottom: 7 })
       .borderRadius(14)
       .backgroundColor(settingsStore.prefs.uiScale === scale
-        ? themeStore.palette.brand : '#22FFFFFF')
+        ? themeStore.palette.brand : themeStore.palette.controlBg)
       .onClick(() => {
         settingsStore.setUiScale(scale);
         themeStore.setScale(scale);
@@ -399,7 +399,7 @@ export struct SettingsAppearanceSection {
       .padding({ left: 12, right: 12, top: 7, bottom: 7 })
       .borderRadius(14)
       .backgroundColor(settingsStore.prefs.bottomBarAnim === mode
-        ? themeStore.palette.brand : '#22FFFFFF')
+        ? themeStore.palette.brand : themeStore.palette.controlBg)
       .onClick(() => {
         settingsStore.setBottomBarAnim(mode);
       })

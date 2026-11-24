@@ -104,10 +104,10 @@ export struct CoverPanel {
   badges() {
     Row({ space: 6 }) {
       BadgeView({ text: MediaSourceHelper.label(this.sourceOfItem()),
-        tone: MediaSourceHelper.badgeTone(this.sourceOfItem()) })
-      BadgeView({ text: this.qualityText(), tone: 'glass' })
+        tone: MediaSourceHelper.badgeTone(this.sourceOfItem()), onDark: true })
+      BadgeView({ text: this.qualityText(), tone: 'glass', onDark: true })
       if (this.sizeText().length > 0) {
-        BadgeView({ text: this.sizeText(), tone: 'glass' })
+        BadgeView({ text: this.sizeText(), tone: 'glass', onDark: true })
       }
     }
   }

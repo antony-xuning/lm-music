@@ -14,9 +14,25 @@ export class Palette {
   chipBg: string;
   headerGlass: string;
   isDark: boolean;
+  /** 轻微填充：分区容器底色（如下载页统计块）。 */
+  softFill: string;
+  /** 控件底色：芯片 / 输入框 / 次级按钮 / 圆形图标钮。 */
+  controlBg: string;
+  /** 更强的控件底色：需在背景上更突出的元素。 */
+  controlBgStrong: string;
+  /** 软分隔线：卡片内列表 / 设置行分隔。 */
+  softDivider: string;
+  /** 软描边：多选圈 / 未选中控件边缘，深浅模式下均可见。 */
+  softBorder: string;
+  /** 玻璃控件上的文字（如 glass 徽章前景）。 */
+  glassFg: string;
+  /** 半模态拖拽把手。 */
+  handle: string;
 
   constructor(bg: string, card: string, cardSoft: string, text: string, sub: string, divider: string,
-    brand: string, scrim: string, onBrand: string, chipBg: string, headerGlass: string, isDark: boolean) {
+    brand: string, scrim: string, onBrand: string, chipBg: string, headerGlass: string, isDark: boolean,
+    softFill: string, controlBg: string, controlBgStrong: string, softDivider: string,
+    softBorder: string, glassFg: string, handle: string) {
     this.bg = bg;
     this.card = card;
     this.cardSoft = cardSoft;
@@ -29,17 +45,28 @@ export class Palette {
     this.chipBg = chipBg;
     this.headerGlass = headerGlass;
     this.isDark = isDark;
+    this.softFill = softFill;
+    this.controlBg = controlBg;
+    this.controlBgStrong = controlBgStrong;
+    this.softDivider = softDivider;
+    this.softBorder = softBorder;
+    this.glassFg = glassFg;
+    this.handle = handle;
   }
 }
 
 export const DARK_PALETTE: Palette = new Palette(
-  '#101014', '#1C1C20', '#242429', '#F5F5F7', '#A1A1A8', '#2A2A30',
-  '#FA2D48', '#000000', '#FFFFFF', '#2A2A30', '#1A1A1FCC', true
+  '#101014', '#1E1E24', '#26262C', '#F5F5F7', '#A6A6AF', '#2D2D34',
+  '#FA2D48', '#000000', '#FFFFFF', '#2C2C33', '#1A1A1F99', true,
+  '#14FFFFFF', '#22FFFFFF', '#33FFFFFF', '#1AFFFFFF',
+  '#66FFFFFF', '#E8E8EE', '#3A3A42'
 );
 
 export const LIGHT_PALETTE: Palette = new Palette(
-  '#F2F2F7', '#FFFFFF', '#F7F7FA', '#111113', '#636366', '#E5E5EA',
-  '#FA2D48', '#000000', '#FFFFFF', '#ECECF1', '#F7F7FACC', false
+  '#FFFFFF', '#FFFFFF', '#F7F7FA', '#111113', '#5C5C63', '#E5E5EA',
+  '#FA2D48', '#000000', '#FFFFFF', '#ECECF1', '#F7F7FAB3', false,
+  '#0D000000', '#14000000', '#1F000000', '#14000000',
+  '#4D000000', '#3C3C43', '#D6D6DC'
 );
 
 /** 渐变封面色组（start / end），供 Artwork 与卡片按种子轮换。 */

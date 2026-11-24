@@ -97,31 +97,43 @@ class PlayerService {
     }
     return new Promise<boolean>((resolve) => {
       let settled: boolean = false;
+      let listener: StateListener = (state: media.AVPlayerState): void => {
+      };
       const timer: number = setTimeout(() => {
         if (!settled) {
           settled = true;
+          // 超时后必须摘掉 waiter，否则快速切歌会持续累积悬挂回调。
+          const index: number = this.waiters.indexOf(listener);
+          if (index >= 0) {
+            this.waiters.splice(index, 1);
+          }
           resolve(this.state === target);
         }
       }, STATE_TIMEOUT);
-      this.waiters.push((state: media.AVPlayerState) => {
+      listener = (state: media.AVPlayerState): void => {
         if (state === target && !settled) {
           settled = true;
           clearTimeout(timer);
           resolve(true);
         }
-      });
+      };
+      this.waiters.push(listener);
     });
   }
 
   /** 打开新的音频源并播放。 */
   load(ref: string, startMs: number, autoPlay: boolean, headers: Record<string, string> | null = null): Promise<void> {
+    // 入队前就登记目标曲目：快速连续切歌时，中间那些已过时的 load 出队后直接跳过。
+    this.pendingRef = ref;
     return this.enqueue(async () => {
       await this.ensurePlayer();
+      if (this.pendingRef !== ref) {
+        return;
+      }
       const player: media.AVPlayer | null = this.player;
       if (player === null) {
         return;
       }
-      this.pendingRef = ref;
       if (this.state !== 'idle') {
         await player.reset();
         await this.awaitState('idle');
@@ -338,6 +350,8 @@ class PlayerService {
     } catch (error) {
       Logger.warn(SCOPE, 'stop ignored');
     }
+    // stop 后若不再 load（切歌取消、退后台、退出应用），fd 不能一直挂着。
+    this.closeDescriptors();
   }
 
   async release(): Promise<void> {

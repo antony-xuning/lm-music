@@ -101,6 +101,9 @@ export class SearchStore {
     this.scope = scope;
     this.page = 1;
     this.results = new SearchResult();
+    this.onlineCount = 0;
+    // 取消排队中的关键词防抖，避免切换范围后旧回调再发一次请求。
+    this.debouncer.cancel();
     if (this.keyword.trim().length > 0) {
       this.runSearch(true);
     }
@@ -149,11 +152,16 @@ export class SearchStore {
     const keyword: string = this.keyword.trim();
     if (keyword.length === 0) {
       this.results = new SearchResult();
+      this.onlineCount = 0;
       this.errorText = '';
       this.hasMore = false;
       return;
     }
-    this.applyLocal(keyword);
+    // 本地结果只在重置时重算；loadMore 必须保留上一页的本地 + 在线结果，否则翻页永远只有一页。
+    if (reset) {
+      this.applyLocal(keyword);
+      this.onlineCount = 0;
+    }
     if (!serverStore.canRead) {
       this.errorText = '';
       return;
@@ -253,7 +261,9 @@ export class SearchStore {
   clearKeyword(): void {
     this.keyword = '';
     this.results = new SearchResult();
+    this.onlineCount = 0;
     this.errorText = '';
+    this.hasMore = false;
   }
 
   retry(): void {

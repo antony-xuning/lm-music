@@ -5,6 +5,7 @@ import { AppContextHolder } from '../common/AppContextHolder';
 import { Logger } from '../common/Logger';
 import { avSessionService } from '../service/AvSessionService';
 import { backgroundPlaybackService } from '../service/BackgroundPlaybackService';
+import { playerService } from '../service/PlayerService';
 import { themeStore } from '../viewmodel/ThemeStore';
 
 const SCOPE: string = 'EntryAbility';
@@ -37,9 +38,33 @@ export default class EntryAbility extends UIAbility {
 
   onDestroy(): void {
     Logger.info(SCOPE, 'onDestroy');
-    // 退出应用：结束实况窗并取消长时任务，避免残留系统通知。
-    avSessionService.destroy();
-    backgroundPlaybackService.stop();
+    this.cleanupOnDestroy().catch((error: BusinessError) => {
+      Logger.warn(SCOPE, `cleanup failed: ${error.code}`);
+    });
+  }
+
+  /** 生命周期回调签名保持 void；内部按依赖顺序串行释放系统资源。 */
+  private async cleanupOnDestroy(): Promise<void> {
+    try {
+      playerService.stop();
+    } catch (error) {
+      Logger.warn(SCOPE, 'stop player failed on destroy');
+    }
+    try {
+      await playerService.release();
+    } catch (error) {
+      Logger.warn(SCOPE, 'release player failed on destroy');
+    }
+    try {
+      await avSessionService.destroy();
+    } catch (error) {
+      Logger.warn(SCOPE, 'destroy avSession failed on destroy');
+    }
+    try {
+      await backgroundPlaybackService.stop();
+    } catch (error) {
+      Logger.warn(SCOPE, 'stop background task failed on destroy');
+    }
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {

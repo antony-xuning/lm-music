@@ -82,7 +82,9 @@ export struct LibraryDetailPage {
     return libraryStore.allSongs;
   }
 
-  private displaySongs(): Song[] {
+  /** 展示列表：过滤+排序结果缓存为 V2 计算属性，依赖不变时不再重复计算。 */
+  @Computed
+  get displaySongs(): Song[] {
     const source: Song[] = this.baseSongs();
     const keyword: string = this.keyword.trim().toLowerCase();
     const filtered: Song[] = [];
@@ -125,7 +127,7 @@ export struct LibraryDetailPage {
   }
 
   private selectAll(): void {
-    const songs: Song[] = this.displaySongs();
+    const songs: Song[] = this.displaySongs;
     const ids: string[] = [];
     for (let i = 0; i < songs.length; i++) {
       ids.push(songs[i].id);
@@ -134,7 +136,7 @@ export struct LibraryDetailPage {
   }
 
   private invertSelection(): void {
-    const songs: Song[] = this.displaySongs();
+    const songs: Song[] = this.displaySongs;
     const ids: string[] = [];
     for (let i = 0; i < songs.length; i++) {
       if (!this.isSelected(songs[i].id)) {
@@ -146,7 +148,7 @@ export struct LibraryDetailPage {
 
   private selectedBytes(): number {
     let total: number = 0;
-    const songs: Song[] = this.displaySongs();
+    const songs: Song[] = this.displaySongs;
     for (let i = 0; i < songs.length; i++) {
       if (this.isSelected(songs[i].id)) {
         total += songs[i].sizeBytes;
@@ -285,11 +287,11 @@ export struct LibraryDetailPage {
     if (this.playlistManageMode()) {
       return `${libraryStore.playlists.length} 个歌单 · 可新建/重命名/删除`;
     }
-    return `${this.displaySongs().length} 首 · 共 ${Formatters.bytes(this.totalBytes())}`;
+    return `${this.displaySongs.length} 首 · 共 ${Formatters.bytes(this.totalBytes())}`;
   }
 
   private totalBytes(): number {
-    const songs: Song[] = this.displaySongs();
+    const songs: Song[] = this.displaySongs;
     let total: number = 0;
     for (let i = 0; i < songs.length; i++) {
       total += songs[i].sizeBytes;
@@ -313,7 +315,7 @@ export struct LibraryDetailPage {
       .borderRadius(14)
       .backgroundColor(themeStore.palette.brand)
       .onClick(() => {
-        playVisualSong(this.displaySongs(), 0);
+        playVisualSong(this.displaySongs, 0);
       })
 
       Row({ space: 5 }) {
@@ -327,9 +329,9 @@ export struct LibraryDetailPage {
       }
       .padding({ left: 12, right: 12, top: 7, bottom: 7 })
       .borderRadius(14)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .onClick(() => {
-        playSongsShuffled(this.displaySongs());
+        playSongsShuffled(this.displaySongs);
       })
 
       Row({ space: 5 }) {
@@ -343,7 +345,7 @@ export struct LibraryDetailPage {
       }
       .padding({ left: 12, right: 12, top: 7, bottom: 7 })
       .borderRadius(14)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .onClick(() => {
         this.selectionMode = !this.selectionMode;
         if (!this.selectionMode) {
@@ -363,7 +365,7 @@ export struct LibraryDetailPage {
         .fontSize(12)
         .fontColor(themeStore.palette.text)
         .placeholderColor(themeStore.palette.sub)
-        .backgroundColor('#22FFFFFF')
+        .backgroundColor(themeStore.palette.controlBg)
         .borderRadius(14)
         .height(36)
         .layoutWeight(1)
@@ -377,7 +379,7 @@ export struct LibraryDetailPage {
         .fontColor(themeStore.palette.text)
         .padding({ left: 12, right: 12, top: 7, bottom: 7 })
         .borderRadius(14)
-        .backgroundColor('#22FFFFFF')
+        .backgroundColor(themeStore.palette.controlBg)
         .onClick(() => {
           this.sortIndex = (this.sortIndex + 1) % 3;
           LibraryViewState.setSort(this.stateKey(), this.sortIndex);
@@ -499,7 +501,7 @@ export struct LibraryDetailPage {
       .width(30)
       .height(30)
       .borderRadius(15)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .onClick(() => {
         this.openNameDialog(playlist.id, playlist.name);
       })
@@ -513,7 +515,7 @@ export struct LibraryDetailPage {
       .width(30)
       .height(30)
       .borderRadius(15)
-      .backgroundColor('#22FFFFFF')
+      .backgroundColor(themeStore.palette.controlBg)
       .onClick(() => {
         this.deletePlaylist(playlist);
       })
@@ -587,7 +589,7 @@ export struct LibraryDetailPage {
             this.actionsRow()
             this.searchAndSort()
 
-            if (this.displaySongs().length === 0) {
+            if (this.displaySongs.length === 0) {
               EmptyState({
                 title: this.emptyTitle(),
                 description: '同步服务器曲库后即可在此浏览',
@@ -598,32 +600,35 @@ export struct LibraryDetailPage {
                 .layoutWeight(1)
             } else {
               List() {
-                ForEach(this.displaySongs(), (song: Song, index: number) => {
-                  ListItem() {
-                    SongRow({
-                      song: song,
-                      index: index,
-                      selectionMode: this.selectionMode,
-                      selected: this.isSelected(song.id),
-                      textColor: themeStore.palette.text,
-                      subColor: themeStore.palette.sub,
-                      accent: themeStore.palette.brand,
-                      onTap: (item: Song) => {
-                        playVisualSong(this.displaySongs(), index);
-                      },
-                      onSelect: (item: Song) => {
-                        this.toggleSelect(item.id);
-                      },
-                      onMore: (item: Song) => {
-                        this.showSongMenu(item);
-                      }
-                    })
-                  }
-                }, (song: Song) => song.id)
+                // Repeat 虚拟滚动：全部曲目/歌手页可达千首级，仅渲染可视区+预加载区。
+                Repeat<Song>(this.displaySongs)
+                  .key((song: Song) => song.id)
+                  .each((ri: RepeatItem<Song>) => {
+                    ListItem() {
+                      SongRow({
+                        ri: ri,
+                        selectionMode: this.selectionMode,
+                        selected: this.isSelected(ri.item.id),
+                        textColor: themeStore.palette.text,
+                        subColor: themeStore.palette.sub,
+                        accent: themeStore.palette.brand,
+                        onTap: (item: Song) => {
+                          playVisualSong(this.displaySongs, ri.index);
+                        },
+                        onSelect: (item: Song) => {
+                          this.toggleSelect(item.id);
+                        },
+                        onMore: (item: Song) => {
+                          this.showSongMenu(item);
+                        }
+                      })
+                    }
+                  })
+                  .virtualScroll()
               }
               .width('100%')
               .layoutWeight(1)
-              .divider({ strokeWidth: 0.5, color: '#14FFFFFF' })
+              .divider({ strokeWidth: 0.5, color: themeStore.palette.softDivider })
               .scrollBar(BarState.Off)
               .cachedCount(8)
               .padding({ bottom: DockMetrics.contentBottomInset(playerStore.current !== null) })
@@ -716,11 +721,11 @@ export struct LibraryDetailPage {
   private showSongMenu(song: Song): void {
     const actions: string[] = [];
     actions.push('立即播放');
-    actions.push('加入队列');
+    actions.push('加入试听列表');
     actions.push(song.isFavorite ? '取消喜欢' : '喜欢');
     actions.push('加入歌单');
     if (!song.isLocal) {
-      actions.push('下载到服务器');
+      actions.push('下载');
     }
     if (song.isLocal) {
       actions.push('删除本地文件');
@@ -733,7 +738,7 @@ export struct LibraryDetailPage {
         playVisualSong([song], 0);
       } else if (index === 1) {
         queueSong(song);
-        ConfirmDialog.toast(this.getUIContext(), '已加入播放队列');
+        ConfirmDialog.toast(this.getUIContext(), '已加入试听列表');
       } else if (index === 2) {
         libraryStore.toggleFavorite(song.id).then((outcome) => {
           ConfirmDialog.toast(this.getUIContext(), outcome.message);

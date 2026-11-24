@@ -54,6 +54,12 @@ export class LibraryStore {
   private playlistsJson: string = '[]';
   private recentJson: string[] = [];
   private favoriteKeys: Set<string> = new Set<string>();
+  private favoriteFlagSet: Set<string> = new Set<string>();
+  /** id → Song 索引：播放器动画每帧都会查当前曲目，避免全表线性扫描。 */
+  private songIndex: Map<string, Song> = new Map<string, Song>();
+  private songIndexDirty: boolean = true;
+  private allSongsCache: Song[] = [];
+  private allSongsDirty: boolean = true;
   @Trace recentSongsCache: Song[] = [];
   init(): void {
     if (this.started) {
@@ -87,6 +93,7 @@ export class LibraryStore {
         }
       }
       this.localSongs = local;
+      this.invalidateSongIndex();
     } catch (error) {
       Logger.warn(SCOPE, 'library.json unreadable');
     }
@@ -114,10 +121,12 @@ export class LibraryStore {
     this.favoriteFlags = [];
     this.recentIds = [];
     this.recentSongsCache = [];
+    this.invalidateSongIndex();
     this.favoritesJson = '[]';
     this.playlistsJson = '[]';
     this.recentJson = [];
     this.favoriteKeys = new Set<string>();
+    this.favoriteFlagSet = new Set<string>();
     this.syncedAt = 0;
     const serverId: string = serverContext.serverId;
     if (serverId.length > 0) {
@@ -131,6 +140,7 @@ export class LibraryStore {
       this.albums = [];
       this.artists = [];
       this.playlists = [];
+      this.invalidateSongIndex();
       return;
     }
     const snapshot: ServerSnapshot | null = ServerCache.read(serverId);
@@ -140,6 +150,7 @@ export class LibraryStore {
   }
   applySnapshot(snapshot: ServerSnapshot): void {
     this.serverSongs = snapshot.songs;
+    this.invalidateSongIndex();
     this.albums = snapshot.albums;
     this.artists = snapshot.artists;
     this.syncedAt = snapshot.syncedAt;
@@ -203,11 +214,16 @@ export class LibraryStore {
       }
     }
     this.recentSongsCache = songs;
+    this.invalidateSongIndex();
     this.recentIds = ids;
   }
   // ---------- 查询 ----------
   get allSongs(): Song[] {
-    return this.serverSongs.concat(this.localSongs, this.scannedSongs);
+    if (this.allSongsDirty) {
+      this.allSongsCache = this.serverSongs.concat(this.localSongs, this.scannedSongs);
+      this.allSongsDirty = false;
+    }
+    return this.allSongsCache;
   }
   get songCount(): number {
     return this.serverSongs.length + this.localSongs.length + this.scannedSongs.length;
@@ -216,7 +232,7 @@ export class LibraryStore {
     const result: Song[] = [];
     const all: Song[] = this.allSongs;
     for (let i = 0; i < all.length; i++) {
-      if (this.favoriteFlags.indexOf(all[i].id) >= 0) {
+      if (this.favoriteFlagSet.has(all[i].id)) {
         result.push(all[i]);
       }
     }
@@ -237,28 +253,33 @@ export class LibraryStore {
     }
     return result;
   }
+  private invalidateSongIndex(): void {
+    this.songIndexDirty = true;
+    this.allSongsDirty = true;
+  }
+
+  private rebuildSongIndex(): void {
+    const map: Map<string, Song> = new Map<string, Song>();
+    const groups: Song[][] = [this.serverSongs, this.localSongs, this.scannedSongs, this.recentSongsCache];
+    for (let g = 0; g < groups.length; g++) {
+      const songs: Song[] = groups[g];
+      for (let i = 0; i < songs.length; i++) {
+        const song: Song = songs[i];
+        if (song.id.length > 0 && !map.has(song.id)) {
+          map.set(song.id, song);
+        }
+      }
+    }
+    this.songIndex = map;
+    this.songIndexDirty = false;
+  }
+
   findSong(id: string): Song | null {
-    for (let i = 0; i < this.serverSongs.length; i++) {
-      if (this.serverSongs[i].id === id) {
-        return this.serverSongs[i];
-      }
+    if (this.songIndexDirty) {
+      this.rebuildSongIndex();
     }
-    for (let i = 0; i < this.localSongs.length; i++) {
-      if (this.localSongs[i].id === id) {
-        return this.localSongs[i];
-      }
-    }
-    for (let i = 0; i < this.scannedSongs.length; i++) {
-      if (this.scannedSongs[i].id === id) {
-        return this.scannedSongs[i];
-      }
-    }
-    for (let i = 0; i < this.recentSongsCache.length; i++) {
-      if (this.recentSongsCache[i].id === id) {
-        return this.recentSongsCache[i];
-      }
-    }
-    return null;
+    const song: Song | undefined = this.songIndex.get(id);
+    return song !== undefined ? song : null;
   }
   findSongs(ids: string[]): Song[] {
     const result: Song[] = [];
@@ -376,7 +397,7 @@ export class LibraryStore {
   }
   isFavorite(songId: string): boolean {
     // 先读取 @Trace 的 favoriteFlags，确保界面能感知收藏变化。
-    const flagged: boolean = this.favoriteFlags.indexOf(songId) >= 0;
+    const flagged: boolean = this.favoriteFlagSet.has(songId);
     const song: Song | null = this.findSong(songId);
     if (song === null) {
       return flagged;
@@ -394,6 +415,7 @@ export class LibraryStore {
       }
     }
     this.favoriteFlags = flags;
+    this.favoriteFlagSet = new Set<string>(flags);
   }
   /** 收藏切换：乐观更新 → 读取整表 → 修改 → 整表写回；读取失败回滚。 */
   async toggleFavorite(songId: string): Promise<FavoriteToggle> {
@@ -467,6 +489,7 @@ export class LibraryStore {
       flags.splice(index, 1);
     }
     this.favoriteFlags = flags;
+    this.favoriteFlagSet = new Set<string>(flags);
   }
   // ---------- 歌单写回 ----------
   private async readPlaylistsRaw(): Promise<Object[] | null> {
@@ -697,6 +720,7 @@ export class LibraryStore {
       next.push(song);
     }
     this.scannedSongs = next;
+    this.invalidateSongIndex();
     this.applyFavoriteFlags();
   }
   private duplicatesImported(candidate: Song): boolean {
@@ -728,6 +752,7 @@ export class LibraryStore {
       }
     }
     this.localSongs = next;
+    this.invalidateSongIndex();
     this.lastImportMessage = skipped > 0 ? `${message}（跳过 ${skipped} 个不支持的文件）` : message;
     this.saver.run(() => {
       this.persistLocal();
@@ -744,6 +769,7 @@ export class LibraryStore {
       }
     }
     this.localSongs = remaining;
+    this.invalidateSongIndex();
     // 扫描曲目只移除索引记录，绝不删除用户目录中的原文件。
     const keptScanned: Song[] = [];
     for (let i = 0; i < this.scannedSongs.length; i++) {
@@ -754,6 +780,7 @@ export class LibraryStore {
       }
     }
     this.scannedSongs = keptScanned;
+    this.invalidateSongIndex();
     this.persistLocal();
     this.applyFavoriteFlags();
     return removedSongs.length;
